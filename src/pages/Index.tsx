@@ -1,12 +1,30 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { Header } from '@/components/layout/Header';
+import { Footer } from '@/components/layout/Footer';
+import { WhatsAppButton } from '@/components/WhatsAppButton';
+import { HeroSection } from '@/components/home/HeroSection';
+import { AboutSection } from '@/components/home/AboutSection';
+import { FeaturedRooms } from '@/components/home/FeaturedRooms';
+import { AmenitiesSection } from '@/components/home/AmenitiesSection';
+import { GalleryPreview } from '@/components/home/GalleryPreview';
+import { ReviewsSection } from '@/components/home/ReviewsSection';
+import { CTASection } from '@/components/home/CTASection';
+import { hotelConfig } from '@/data/hotelData';
 
 const Index = () => {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
+    <div className="min-h-screen bg-background">
+      <Header />
+      <main>
+        <HeroSection />
+        <AboutSection />
+        <FeaturedRooms />
+        <AmenitiesSection />
+        <GalleryPreview />
+        <ReviewsSection />
+        <CTASection />
+      </main>
+      <Footer />
+      <WhatsAppButton />
     </div>
   );
 };
