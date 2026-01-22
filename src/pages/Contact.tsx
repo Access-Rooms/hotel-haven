@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { MapPin, Phone, Mail, Clock, MessageCircle, Send } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
@@ -6,8 +6,10 @@ import { WhatsAppButton } from '@/components/WhatsAppButton';
 import { Button } from '@/components/ui/button';
 import { hotelConfig } from '@/data/hotelData';
 import { useToast } from '@/hooks/use-toast';
+import { useHotels } from '@/contexts/HotelContext';
 
 export default function Contact() {
+  const { selectedHotel } = useHotels();
   const { toast } = useToast();
   const [formData, setFormData] = useState({
     name: '',
@@ -16,6 +18,65 @@ export default function Contact() {
     subject: '',
     message: '',
   });
+
+  // Extract contact details from hotel
+  const contactInfo = useMemo(() => {
+    if (!selectedHotel) {
+      return {
+        address: hotelConfig.address,
+        phone: hotelConfig.phone,
+        email: hotelConfig.email,
+        whatsapp: hotelConfig.whatsappNumber,
+        receptionHours: '24/7 — Always at your service',
+        location: hotelConfig.address,
+        hotelName: hotelConfig.name,
+      };
+    }
+
+    // Get phone number - try contactDetails first, then fallback
+    const phoneNumbers = selectedHotel.contactDetails?.phoneNumber || [];
+    const primaryPhone = Array.isArray(phoneNumbers) && phoneNumbers.length > 0
+      ? (typeof phoneNumbers[0] === 'string' ? phoneNumbers[0] : phoneNumbers[0]?.number || phoneNumbers[0]?.phone || hotelConfig.phone)
+      : hotelConfig.phone;
+
+    // Get email - try contactDetails first, then hotel.email
+    const emails = selectedHotel.contactDetails?.emailId || [];
+    const primaryEmail = Array.isArray(emails) && emails.length > 0
+      ? (typeof emails[0] === 'string' ? emails[0] : emails[0]?.email || emails[0]?.emailId || selectedHotel.email)
+      : (selectedHotel.email || hotelConfig.email);
+
+    // Build address
+    const addressParts = [
+      selectedHotel.address,
+      selectedHotel.locationName,
+      selectedHotel.townName,
+      selectedHotel.state,
+      selectedHotel.country,
+    ].filter(Boolean);
+    const fullAddress = addressParts.length > 0 
+      ? addressParts.join(', ')
+      : hotelConfig.address;
+
+    // Reception hours
+    const receptionHours = selectedHotel.is24HrsCheckin
+      ? '24/7 — Always at your service'
+      : selectedHotel.checkInTime && selectedHotel.checkOutTime
+      ? `${selectedHotel.checkInTime} - ${selectedHotel.checkOutTime}`
+      : '24/7 — Always at your service';
+
+    // Location for map
+    const mapLocation = selectedHotel.googleLocation || selectedHotel.address || fullAddress;
+
+    return {
+      address: fullAddress,
+      phone: primaryPhone,
+      email: primaryEmail,
+      whatsapp: selectedHotel.whatsappNumber || hotelConfig.whatsappNumber,
+      receptionHours,
+      location: mapLocation,
+      hotelName: selectedHotel.hotelName || hotelConfig.name,
+    };
+  }, [selectedHotel]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,15 +88,16 @@ export default function Contact() {
   };
 
   const handleWhatsApp = () => {
+    const whatsappNumber = contactInfo.whatsapp.replace(/\D/g, '');
     window.open(
-      `https://wa.me/${hotelConfig.whatsappNumber.replace(/\D/g, '')}?text=Hi, I have a question about ${hotelConfig.name}.`,
+      `https://wa.me/${whatsappNumber}?text=Hi, I have a question about ${contactInfo.hotelName}.`,
       '_blank'
     );
   };
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      <Header hotel={selectedHotel} />
 
       {/* Hero */}
       <section className="relative pt-32 pb-20 bg-gradient-hero">
@@ -73,7 +135,7 @@ export default function Contact() {
                   <div>
                     <h3 className="font-semibold text-foreground">Address</h3>
                     <p className="text-muted-foreground text-sm mt-1">
-                      {hotelConfig.address}
+                      {contactInfo.address}
                     </p>
                   </div>
                 </div>
@@ -84,12 +146,14 @@ export default function Contact() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-foreground">Phone</h3>
-                    <a
-                      href={`tel:${hotelConfig.phone}`}
-                      className="text-muted-foreground text-sm hover:text-primary transition-colors mt-1 block"
-                    >
-                      {hotelConfig.phone}
-                    </a>
+                    {contactInfo.phone && (
+                      <a
+                        href={`tel:${contactInfo.phone}`}
+                        className="text-muted-foreground text-sm hover:text-primary transition-colors mt-1 block"
+                      >
+                        {contactInfo.phone}
+                      </a>
+                    )}
                   </div>
                 </div>
 
@@ -99,12 +163,14 @@ export default function Contact() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-foreground">Email</h3>
-                    <a
-                      href={`mailto:${hotelConfig.email}`}
-                      className="text-muted-foreground text-sm hover:text-primary transition-colors mt-1 block"
-                    >
-                      {hotelConfig.email}
-                    </a>
+                    {contactInfo.email && (
+                      <a
+                        href={`mailto:${contactInfo.email}`}
+                        className="text-muted-foreground text-sm hover:text-primary transition-colors mt-1 block"
+                      >
+                        {contactInfo.email}
+                      </a>
+                    )}
                   </div>
                 </div>
 
@@ -115,7 +181,7 @@ export default function Contact() {
                   <div>
                     <h3 className="font-semibold text-foreground">Reception Hours</h3>
                     <p className="text-muted-foreground text-sm mt-1">
-                      24/7 — Always at your service
+                      {contactInfo.receptionHours}
                     </p>
                   </div>
                 </div>
@@ -239,7 +305,9 @@ export default function Contact() {
               Find Us Here
             </h2>
             <p className="text-muted-foreground mt-2">
-              Located on the pristine shores of Candolim Beach, Goa
+              {selectedHotel?.locationName 
+                ? `Located in ${selectedHotel.locationName}${selectedHotel.townName ? `, ${selectedHotel.townName}` : ''}${selectedHotel.state ? `, ${selectedHotel.state}` : ''}`
+                : 'Find us on the map below'}
             </p>
           </div>
           <div className="rounded-2xl overflow-hidden shadow-card h-96 bg-muted flex items-center justify-center">
@@ -249,7 +317,7 @@ export default function Contact() {
                 Interactive map would be integrated here
               </p>
               <a
-                href={`https://maps.google.com/?q=${encodeURIComponent(hotelConfig.address)}`}
+                href={`https://maps.google.com/?q=${encodeURIComponent(contactInfo.location)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary hover:underline mt-2 inline-block"
@@ -261,7 +329,7 @@ export default function Contact() {
         </div>
       </section>
 
-      <Footer />
+      <Footer hotel={selectedHotel} />
       <WhatsAppButton />
     </div>
   );

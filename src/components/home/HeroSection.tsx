@@ -4,11 +4,16 @@ import { CalendarDays, Users, ChevronDown, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { hotelConfig } from '@/data/hotelData';
 import { cn } from '@/lib/utils';
+import { Hotel } from '@/models/home.models';
+import { useBooking } from '@/contexts/BookingContext';
 
-export function HeroSection() {
-  const [checkIn, setCheckIn] = useState('');
-  const [checkOut, setCheckOut] = useState('');
-  const [guests, setGuests] = useState(2);
+interface HeroSectionProps {
+  hotels?: Hotel[];
+}
+
+export function HeroSection({ hotels }: HeroSectionProps) {
+  const { checkIn, checkOut, guests, setCheckIn, setCheckOut, setGuests } = useBooking();
+  const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(hotels?.[0] || null);
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
@@ -27,13 +32,13 @@ export function HeroSection() {
       <div className="relative z-10 container-hotel text-center pt-20 pb-32">
         <div className="max-w-4xl mx-auto space-y-6 animate-fade-up">
           <p className="text-hotel-secondary font-medium tracking-wider uppercase text-sm">
-            Welcome to Paradise
+            Welcome to {selectedHotel?.hotelName}
           </p>
           <h1 className="font-display text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-card leading-tight">
-            {hotelConfig.name}
+            {selectedHotel?.hotelName}
           </h1>
           <p className="text-card/90 text-lg sm:text-xl max-w-2xl mx-auto">
-            {hotelConfig.tagline}. Discover the perfect blend of luxury, comfort, and breathtaking ocean views at {hotelConfig.location}.
+            {hotelConfig?.tagline}. Discover the perfect blend of luxury, comfort, and breathtaking ocean views at {selectedHotel?.locationName}.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
             <Button variant="hero" size="xl" asChild>

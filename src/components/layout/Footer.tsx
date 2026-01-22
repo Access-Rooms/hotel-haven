@@ -1,8 +1,18 @@
 import { Link } from 'react-router-dom';
 import { MapPin, Phone, Mail, Instagram, Facebook, Twitter } from 'lucide-react';
 import { hotelConfig } from '@/data/hotelData';
+import { Hotel } from '@/models/home.models';
+import { useState } from 'react';
+import { useEffect } from 'react';
 
-export function Footer() {
+export function Footer({ hotel }: { hotel: Hotel | null }) {
+  const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(hotel);
+  useEffect(() => {
+    if (hotel) {
+      setSelectedHotel(hotel);
+    }
+  }, [hotel]);
+
   return (
     <footer className="bg-foreground text-background">
       <div className="container-hotel py-16">
@@ -12,12 +22,12 @@ export function Footer() {
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-hero flex items-center justify-center">
                 <span className="text-primary-foreground font-display font-bold text-lg">
-                  {hotelConfig.name.charAt(0)}
+                  {selectedHotel?.hotelName.charAt(0)}
                 </span>
               </div>
               <div>
-                <h3 className="font-display font-semibold text-lg">{hotelConfig.name}</h3>
-                <p className="text-sm text-background/60">{hotelConfig.tagline}</p>
+                <h3 className="font-display font-semibold text-lg">{selectedHotel?.hotelName}</h3>
+                <p className="text-sm text-background/60">{hotelConfig?.tagline}</p>
               </div>
             </div>
             <p className="text-background/70 text-sm leading-relaxed">
@@ -71,18 +81,18 @@ export function Footer() {
             <ul className="space-y-4">
               <li className="flex gap-3 text-sm">
                 <MapPin size={18} className="text-hotel-secondary shrink-0 mt-0.5" />
-                <span className="text-background/70">{hotelConfig.address}</span>
+                <span className="text-background/70">{selectedHotel?.address}</span>
               </li>
               <li>
-                <a href={`tel:${hotelConfig.phone}`} className="flex gap-3 text-sm text-background/70 hover:text-background transition-colors">
+                <a href={`tel:${selectedHotel?.contactDetails.phoneNumber[0] || selectedHotel?.whatsappNumber}`} className="flex gap-3 text-sm text-background/70 hover:text-background transition-colors">
                   <Phone size={18} className="text-hotel-secondary shrink-0" />
-                  {hotelConfig.phone}
+                  {selectedHotel?.contactDetails.phoneNumber[0] || selectedHotel?.whatsappNumber || ''}
                 </a>
               </li>
               <li>
-                <a href={`mailto:${hotelConfig.email}`} className="flex gap-3 text-sm text-background/70 hover:text-background transition-colors">
+                <a href={`mailto:${selectedHotel?.email}`} className="flex gap-3 text-sm text-background/70 hover:text-background transition-colors">
                   <Mail size={18} className="text-hotel-secondary shrink-0" />
-                  {hotelConfig.email}
+                  {selectedHotel?.email || ''}
                 </a>
               </li>
             </ul>
@@ -91,7 +101,7 @@ export function Footer() {
 
         <div className="mt-12 pt-8 border-t border-background/10 flex flex-col sm:flex-row justify-between items-center gap-4">
           <p className="text-sm text-background/50">
-            © {new Date().getFullYear()} {hotelConfig.name}. All rights reserved.
+            © {new Date().getFullYear()} {selectedHotel?.hotelName}. All rights reserved.
           </p>
           <div className="flex gap-6 text-sm text-background/50">
             <a href="#" className="hover:text-background transition-colors">Privacy Policy</a>

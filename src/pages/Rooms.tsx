@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { Users, Maximize, ArrowRight, SlidersHorizontal, X } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
@@ -8,6 +8,12 @@ import { Button } from '@/components/ui/button';
 import { rooms } from '@/data/hotelData';
 import { hotelConfig } from '@/data/hotelData';
 import { cn } from '@/lib/utils';
+import { GetRoomsListPayload, Room } from '@/models/room.models';
+import { homeService } from '@/services/home.service';
+import { ApiResponse } from '@/models/common.models';
+import { useBooking } from '@/contexts/BookingContext';
+import { environment } from '../../environment';
+import { useHotels } from '@/contexts/HotelContext';
 
 const priceRanges = [
   { label: 'All Prices', min: 0, max: Infinity },
@@ -19,16 +25,67 @@ const priceRanges = [
 const guestOptions = [1, 2, 3, 4];
 
 export default function Rooms() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { selectedHotel } = useHotels();
+  
+  // Get hotelId from URL or use selectedHotel from context (hotelId will always be available)
+  const hotelId = searchParams.get('hotelId') || selectedHotel?._id;
+  
   const [priceFilter, setPriceFilter] = useState(0);
   const [guestFilter, setGuestFilter] = useState<number | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [roomsData, setRoomsData] = useState<Room[] | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const { dateFilter } = useBooking();
+  // Fetch rooms from API when hotelId is available
+  useEffect(() => {
+    const fetchRooms = async () => {
+      if (hotelId) {
+        try {
+          setIsLoading(true);
+          const payload: GetRoomsListPayload = {
+            hotelId: hotelId,
+            dateFilter: dateFilter,
+            packageType: 'B2B',
+            showRoomsWithRate: true,
+          };
+          const response: ApiResponse<Room[]> = await homeService.getRoomsList(payload);
+          setRoomsData(response.data);
+        } catch (error) {
+          console.error('Error fetching rooms:', error);
+          setRoomsData(undefined); // Fallback to static data on error
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+        // No hotelId, use static data
+        setRoomsData(undefined);
+      }
+    };
 
-  const filteredRooms = rooms.filter((room) => {
+    fetchRooms();
+  }, [hotelId, dateFilter]);
+
+  // Use API rooms if available, otherwise use static data
+  const allRooms = roomsData && roomsData.length > 0 ? roomsData : rooms;
+
+  // Filter rooms based on selected filters
+  const filteredRooms = allRooms.filter((room) => {
+    const isApiRoom = '_id' in room;
+    const roomPrice = isApiRoom 
+      ? (room.pricing && room.pricing.length > 0 
+          ? Math.min(...room.pricing.map(p => p.netRate))
+          : 0)
+      : (room as any).price;
+    const roomGuests = isApiRoom ? room.totalOccupency : (room as any).maxGuests;
+
     const priceRange = priceRanges[priceFilter];
-    const priceMatch = room.price >= priceRange.min && room.price < priceRange.max;
-    const guestMatch = guestFilter ? room.maxGuests >= guestFilter : true;
+    const priceMatch = roomPrice >= priceRange.min && roomPrice < priceRange.max;
+    const guestMatch = guestFilter ? roomGuests >= guestFilter : true;
     return priceMatch && guestMatch;
   });
+  console.log(filteredRooms);
 
   const clearFilters = () => {
     setPriceFilter(0);
@@ -39,7 +96,7 @@ export default function Rooms() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      <Header hotel={selectedHotel || null} />
 
       {/* Hero */}
       <section className="relative pt-32 pb-20 bg-gradient-hero">
@@ -182,88 +239,212 @@ export default function Rooms() {
       {/* Rooms Grid */}
       <section className="py-12">
         <div className="container-hotel">
-          <div className="grid md:grid-cols-2 gap-8">
-            {filteredRooms.map((room) => (
-              <Link
-                key={room.id}
-                to={`/rooms/${room.id}`}
-                className="room-card group flex flex-col lg:flex-row"
-              >
-                {/* Image */}
-                <div className="relative overflow-hidden lg:w-2/5 aspect-[4/3] lg:aspect-auto">
-                  <img
-                    src={room.images[0]}
-                    alt={room.name}
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                  />
-                  {room.featured && (
-                    <div className="absolute top-4 left-4 bg-hotel-accent text-accent-foreground px-3 py-1 rounded-full text-xs font-semibold">
-                      Featured
-                    </div>
-                  )}
-                </div>
+          {isLoading ? (
+            <div className="text-center py-16">
+              <p className="text-muted-foreground text-lg">Loading rooms...</p>
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 gap-8">
+             
+              {filteredRooms.map((room) => {
+                // Handle API Room structure
+                const isApiRoom = '_id' in room;
+                const roomId = isApiRoom ? room._id : (room as any).id;
+                const roomName = isApiRoom ? room.roomsDisplayName : (room as any).name;
+                
+                // Construct image URL - prepend base URL for API rooms
+                let roomImage: string;
+                if (isApiRoom) {
+                  const imagePath = room.roomImage || (room.roomAdditionalImages?.[0] || '');
+                  roomImage = imagePath 
+                    ? (imagePath.startsWith('http') 
+                        ? imagePath 
+                        : `${environment.imageBaseUrl}${imagePath}`)
+                    : '';
+                } else {
+                  roomImage = (room as any).images[0];
+                }
 
-                {/* Content */}
-                <div className="p-6 lg:w-3/5 flex flex-col">
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between gap-4 mb-2">
-                      <h3 className="font-display text-xl font-semibold text-foreground group-hover:text-primary transition-colors">
-                        {room.name}
-                      </h3>
-                      <div className="text-right shrink-0">
-                        <p className="text-2xl font-display font-bold text-primary">
-                          {hotelConfig.currencySymbol}{room.price.toLocaleString()}
-                        </p>
-                        <p className="text-xs text-muted-foreground">per night</p>
-                      </div>
-                    </div>
+                // Get pricing details for API rooms
+                let roomPrice = 0;
+                let basePrice = 0;
+                let selectedPricing = null;
+                
+                if (isApiRoom && room.pricing && room.pricing.length > 0) {
+                  // Find the pricing with the lowest net rate
+                  selectedPricing = room.pricing.reduce((min, p) => 
+                    p.netRate < min.netRate ? p : min
+                  );
+                  roomPrice = selectedPricing.netRate;
+                  basePrice = selectedPricing.basePrice;
+                } else if (!isApiRoom) {
+                  roomPrice = (room as any).price;
+                  basePrice = (room as any).price;
+                }
+                
+                const roomGuests = isApiRoom ? room.totalOccupency : (room as any).maxGuests;
+                const roomSize = isApiRoom 
+                  ? (room.roomSize?.area ? `${room.roomSize.area} sqm` : 'N/A')
+                  : (room as any).size;
+                const roomDescription = isApiRoom 
+                  ? `${room.roomCategory?.category_name || ''} ${room.roomView || ''}`.trim()
+                  : (room as any).description;
+                const roomBedType = isApiRoom 
+                  ? room.bedView || 'Standard'
+                  : (room as any).bedType;
+                const roomAmenities = isApiRoom 
+                  ? [
+                      room.roomView || '',
+                      room.bedView || '',
+                      room.viewType || ''
+                    ].filter(Boolean)
+                  : (room as any).amenities || [];
+                const isFeatured = isApiRoom ? false : (room as any).featured || false;
 
-                    <p className="text-muted-foreground text-sm mb-4 line-clamp-2">
-                      {room.description}
-                    </p>
+                // Always include hotelId in the URL (hotelId will always be available)
+                const roomDetailsUrl = hotelId 
+                  ? `/rooms/${roomId}?hotelId=${hotelId}`
+                  : `/rooms/${roomId}`;
 
-                    {/* Meta */}
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
-                      <span className="flex items-center gap-1.5">
-                        <Users size={16} />
-                        {room.maxGuests} Guests
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <Maximize size={16} />
-                        {room.size}
-                      </span>
-                      <span>{room.bedType} Bed</span>
-                    </div>
+                const handleCardClick = () => {
+                  navigate(roomDetailsUrl);
+                };
 
-                    {/* Amenities */}
-                    <div className="flex flex-wrap gap-2">
-                      {room.amenities.slice(0, 4).map((amenity) => (
-                        <span key={amenity} className="amenity-badge text-xs">
-                          {amenity}
-                        </span>
-                      ))}
-                      {room.amenities.length > 4 && (
-                        <span className="amenity-badge text-xs">
-                          +{room.amenities.length - 4}
-                        </span>
+                return (
+                  <div
+                    key={roomId}
+                    onClick={handleCardClick}
+                    className="room-card group flex flex-col lg:flex-row cursor-pointer"
+                  >
+                    {/* Image */}
+                    <div className="relative overflow-hidden lg:w-2/5 aspect-[4/3] lg:aspect-auto">
+                      <img
+                        src={roomImage || 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=800'}
+                        alt={roomName}
+                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                      />
+                      {isFeatured && (
+                        <div className="absolute top-4 left-4 bg-hotel-accent text-accent-foreground px-3 py-1 rounded-full text-xs font-semibold">
+                          Featured
+                        </div>
                       )}
                     </div>
-                  </div>
 
-                  {/* CTA */}
-                  <div className="flex items-center justify-between mt-6 pt-4 border-t border-border">
-                    <span className="text-primary font-medium text-sm flex items-center gap-2 group-hover:gap-3 transition-all">
-                      View Details
-                      <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
-                    </span>
-                    <Button variant="booking" size="sm">
-                      Book Now
-                    </Button>
+                    {/* Content */}
+                    <div className="p-6 lg:w-3/5 flex flex-col">
+                      <div className="flex-1">
+                        <div className="flex items-start justify-between gap-4 mb-2">
+                          <h3 className="font-display text-xl font-semibold text-foreground group-hover:text-primary transition-colors">
+                            {roomName}
+                          </h3>
+                          {basePrice > 0 && (
+                            <div className="text-right shrink-0">
+                              {basePrice > roomPrice ? (
+                                <>
+                                 
+                                  <p className="text-2xl font-display font-bold text-primary">
+                                    {hotelConfig.currencySymbol}{basePrice.toLocaleString()}
+                                  </p>
+                                 
+                                </>
+                              ) : (
+                                <>
+                                  <p className="text-2xl font-display font-bold text-primary">
+                                    {hotelConfig.currencySymbol}{roomPrice.toLocaleString()}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">per night</p>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {roomDescription && (
+                          <p className="text-muted-foreground text-sm mb-4 line-clamp-2">
+                            {roomDescription}
+                          </p>
+                        )}
+
+                        {/* Pricing Features */}
+                        {isApiRoom && selectedPricing && (
+                          <div className="flex flex-wrap gap-2 mb-4">
+                            {selectedPricing.breakfastIncluded && (
+                              <span className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full bg-hotel-secondary/10 text-hotel-secondary">
+                                <span>✓</span> Breakfast
+                              </span>
+                            )}
+                            {selectedPricing.haveWelcomeDrink && (
+                              <span className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full bg-hotel-secondary/10 text-hotel-secondary">
+                                <span>✓</span> Welcome Drink
+                              </span>
+                            )}
+                            {selectedPricing.ac && (
+                              <span className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full bg-hotel-secondary/10 text-hotel-secondary">
+                                <span>✓</span> AC
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Meta */}
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
+                          {roomGuests > 0 && (
+                            <span className="flex items-center gap-1.5">
+                              <Users size={16} />
+                              {roomGuests} {roomGuests === 1 ? 'Guest' : 'Guests'}
+                            </span>
+                          )}
+                          {roomSize && roomSize !== 'N/A' && (
+                            <span className="flex items-center gap-1.5">
+                              <Maximize size={16} />
+                              {roomSize}
+                            </span>
+                          )}
+                          {roomBedType && (
+                            <span>{roomBedType} Bed</span>
+                          )}
+                        </div>
+
+                        {/* Amenities */}
+                        {roomAmenities.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {roomAmenities.slice(0, 4).map((amenity, idx) => (
+                              <span key={idx} className="amenity-badge text-xs">
+                                {amenity}
+                              </span>
+                            ))}
+                            {roomAmenities.length > 4 && (
+                              <span className="amenity-badge text-xs">
+                                +{roomAmenities.length - 4}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* CTA */}
+                      <div className="flex items-center justify-between mt-6 pt-4 border-t border-border">
+                        <span className="text-primary font-medium text-sm flex items-center gap-2 group-hover:gap-3 transition-all">
+                          View Details
+                          <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
+                        </span>
+                        <Button 
+                          variant="booking" 
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(roomDetailsUrl);
+                          }}
+                        >
+                          Book Now
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </Link>
-            ))}
-          </div>
+                );
+              })}
+            </div>
+          )}
 
           {filteredRooms.length === 0 && (
             <div className="text-center py-16">
@@ -278,7 +459,7 @@ export default function Rooms() {
         </div>
       </section>
 
-      <Footer />
+      <Footer hotel={selectedHotel || null} />
       <WhatsAppButton />
     </div>
   );

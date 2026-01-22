@@ -1,29 +1,105 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { WhatsAppButton } from '@/components/WhatsAppButton';
 import { galleryImages } from '@/data/hotelData';
 import { cn } from '@/lib/utils';
+import { useHotels } from '@/contexts/HotelContext';
+import { environment } from '../../environment';
+
+interface GalleryImage {
+  id: string;
+  url: string;
+  caption: string;
+  category: string;
+}
 
 const categories = [
   { id: 'all', label: 'All' },
+  { id: 'exterior', label: 'Exterior' },
+  { id: 'interior', label: 'Interior' },
+  { id: 'gallery', label: 'Gallery' },
   { id: 'room', label: 'Rooms' },
   { id: 'dining', label: 'Dining' },
   { id: 'pool', label: 'Pool' },
   { id: 'spa', label: 'Spa' },
-  { id: 'exterior', label: 'Exterior' },
   { id: 'events', label: 'Events' },
 ];
 
 export default function Gallery() {
+  const { selectedHotel } = useHotels();
   const [activeCategory, setActiveCategory] = useState('all');
   const [lightboxImage, setLightboxImage] = useState<number | null>(null);
 
+  // Combine all hotel images and map them properly
+  const hotelGalleryImages = useMemo(() => {
+    if (!selectedHotel) return [];
+
+    const images: GalleryImage[] = [];
+    let imageIndex = 0;
+
+    // Helper to construct full image URL
+    const getImageUrl = (imagePath: string | undefined): string | null => {
+      if (!imagePath) return null;
+      if (imagePath.startsWith('http')) return imagePath;
+      return `${environment.imageBaseUrl}${imagePath}`;
+    };
+
+    // Add cover image if available
+    if (selectedHotel.coverImages) {
+      const coverUrl = getImageUrl(selectedHotel.coverImages);
+      if (coverUrl) {
+        images.push({
+          id: `cover-${imageIndex++}`,
+          url: coverUrl,
+          caption: `${selectedHotel.hotelName} - Main View`,
+          category: 'exterior',
+        });
+      }
+    }
+
+    // Add interior images
+    if (selectedHotel.interiorImage && Array.isArray(selectedHotel.interiorImage)) {
+      selectedHotel.interiorImage.forEach((img, idx) => {
+        const imagePath = typeof img === 'string' ? img : img?.url || img?.path || img;
+        const imageUrl = getImageUrl(imagePath);
+        if (imageUrl) {
+          images.push({
+            id: `interior-${idx}`,
+            url: imageUrl,
+            caption: `${selectedHotel.hotelName} - Interior ${idx + 1}`,
+            category: 'interior',
+          });
+        }
+      });
+    }
+
+    // Add additional images
+    if (selectedHotel.additionalImages && Array.isArray(selectedHotel.additionalImages)) {
+      selectedHotel.additionalImages.forEach((img, idx) => {
+        const imageUrl = getImageUrl(img);
+        if (imageUrl) {
+          images.push({
+            id: `additional-${idx}`,
+            url: imageUrl,
+            caption: `${selectedHotel.hotelName} - Gallery ${idx + 1}`,
+            category: 'gallery',
+          });
+        }
+      });
+    }
+
+    return images;
+  }, [selectedHotel]);
+
+  // Use hotel images if available, otherwise fallback to static images
+  const allImages = hotelGalleryImages.length > 0 ? hotelGalleryImages : galleryImages;
+
   const filteredImages =
     activeCategory === 'all'
-      ? galleryImages
-      : galleryImages.filter((img) => img.category === activeCategory);
+      ? allImages
+      : allImages.filter((img) => img.category === activeCategory);
 
   const openLightbox = (index: number) => {
     setLightboxImage(index);
@@ -49,7 +125,7 @@ export default function Gallery() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      <Header hotel={selectedHotel} />
 
       {/* Hero */}
       <section className="relative pt-32 pb-20 bg-gradient-hero">
@@ -88,26 +164,34 @@ export default function Gallery() {
       {/* Gallery Grid */}
       <section className="py-12">
         <div className="container-hotel">
-          <div className="columns-1 sm:columns-2 lg:columns-3 gap-4 space-y-4">
-            {filteredImages.map((image, index) => (
-              <button
-                key={image.id}
-                onClick={() => openLightbox(index)}
-                className="block w-full rounded-2xl overflow-hidden group relative break-inside-avoid"
-              >
-                <img
-                  src={image.url}
-                  alt={image.caption}
-                  className="w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                />
-                <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/30 transition-colors duration-300" />
-                <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-foreground/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                  <p className="text-card font-medium">{image.caption}</p>
-                  <p className="text-card/80 text-sm capitalize">{image.category}</p>
-                </div>
-              </button>
-            ))}
-          </div>
+          {filteredImages.length > 0 ? (
+            <div className="columns-1 sm:columns-2 lg:columns-3 gap-4 space-y-4">
+              {filteredImages.map((image, index) => (
+                <button
+                  key={image.id}
+                  onClick={() => openLightbox(index)}
+                  className="block w-full rounded-2xl overflow-hidden group relative break-inside-avoid"
+                >
+                  <img
+                    src={image.url}
+                    alt={image.caption}
+                    className="w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/30 transition-colors duration-300" />
+                  <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-foreground/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <p className="text-card font-medium">{image.caption}</p>
+                    <p className="text-card/80 text-sm capitalize">{image.category}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-16">
+              <p className="text-muted-foreground text-lg">
+                No images available in this category.
+              </p>
+            </div>
+          )}
         </div>
       </section>
 
@@ -153,7 +237,7 @@ export default function Gallery() {
         </div>
       )}
 
-      <Footer />
+      <Footer hotel={selectedHotel} />
       <WhatsAppButton />
     </div>
   );

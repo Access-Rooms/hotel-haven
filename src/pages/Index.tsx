@@ -8,22 +8,24 @@ import { AmenitiesSection } from '@/components/home/AmenitiesSection';
 import { GalleryPreview } from '@/components/home/GalleryPreview';
 import { ReviewsSection } from '@/components/home/ReviewsSection';
 import { CTASection } from '@/components/home/CTASection';
-import { hotelConfig } from '@/data/hotelData';
+import { useHotels } from '@/contexts/HotelContext';
 
 const Index = () => {
+  const { hotels, selectedHotel } = useHotels();
+
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      <Header hotel={selectedHotel || null} />
       <main>
-        <HeroSection />
+        <HeroSection hotels={hotels}/>
         <AboutSection />
-        <FeaturedRooms />
-        <AmenitiesSection />
-        <GalleryPreview />
+        <FeaturedRooms hotels={hotels} />
+        <AmenitiesSection hotelId={selectedHotel?._id || null}/>
+        <GalleryPreview hotel={selectedHotel || null}/>
         <ReviewsSection />
-        <CTASection />
+        <CTASection hotel={selectedHotel || null} />
       </main>
-      <Footer />
+      <Footer hotel={selectedHotel || null} />
       <WhatsAppButton />
     </div>
   );

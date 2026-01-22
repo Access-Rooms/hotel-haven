@@ -2,14 +2,22 @@ import { Link } from 'react-router-dom';
 import { Phone, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { hotelConfig } from '@/data/hotelData';
+import { Hotel } from '@/models/home.models';
+import { useEffect, useState } from 'react';
 
-export function CTASection() {
+export function CTASection({ hotel }: { hotel: Hotel | null }) {
+  const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(hotel);
   const handleWhatsApp = () => {
     window.open(
       `https://wa.me/${hotelConfig.whatsappNumber.replace(/\D/g, '')}?text=Hi, I'd like to inquire about booking a room at ${hotelConfig.name}.`,
       '_blank'
     );
   };
+  useEffect(() => {
+    if (hotel) {
+      setSelectedHotel(hotel);
+    }
+  }, [hotel]);
 
   return (
     <section className="py-20 lg:py-28 bg-background">
