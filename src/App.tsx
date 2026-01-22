@@ -8,6 +8,7 @@ import { HotelProvider } from "@/contexts/HotelContext";
 import Index from "./pages/Index";
 import Rooms from "./pages/Rooms";
 import RoomDetails from "./pages/RoomDetails";
+import ReservationReview from "./pages/ReservationReview";
 import Gallery from "./pages/Gallery";
 import Contact from "./pages/Contact";
 import NotFound from "./pages/NotFound";
@@ -26,6 +27,7 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/rooms" element={<Rooms />} />
               <Route path="/rooms/:roomId" element={<RoomDetails />} />
+              <Route path="/reservation/:roomId" element={<ReservationReview />} />
               <Route path="/gallery" element={<Gallery />} />
               <Route path="/contact" element={<Contact />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

@@ -1,0 +1,1373 @@
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom';
+import {
+  Calendar,
+  Users,
+  Edit2,
+  Upload,
+  X,
+  Check,
+  Shield,
+  Lock,
+  MessageCircle,
+  ChevronRight,
+  Plus,
+  Trash2,
+  Loader2,
+  AlertCircle,
+  FileText,
+  Image as ImageIcon,
+  Phone,
+  Mail,
+  User,
+  CreditCard,
+  Info,
+} from 'lucide-react';
+import { Header } from '@/components/layout/Header';
+import { Footer } from '@/components/layout/Footer';
+import { WhatsAppButton } from '@/components/WhatsAppButton';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
+import { cn } from '@/lib/utils';
+import { roomService } from '@/services/room.service';
+import { RoomDetailsResponse, GetRoomByIdPayload } from '@/models/room.models';
+import { environment } from '../../environment';
+import { useHotels } from '@/contexts/HotelContext';
+import { useBooking } from '@/contexts/BookingContext';
+import { hotelConfig } from '@/data/hotelData';
+
+interface GuestInfo {
+  fullName: string;
+  email: string;
+  phone: string;
+  phoneCountryCode: string;
+  idType: string;
+  idNumber: string;
+  specialRequests: string;
+}
+
+interface AdditionalGuest {
+  id: string;
+  name: string;
+  age: number;
+  relationship: string;
+}
+
+interface UploadedFile {
+  id: string;
+  file: File;
+  preview: string;
+  type: 'image' | 'pdf';
+}
+
+interface FormErrors {
+  [key: string]: string;
+}
+
+export default function ReservationReview() {
+  const { roomId } = useParams();
+  const [searchParams] = useSearchParams();
+  const hotelIdFromQuery = searchParams.get('hotelId');
+  const navigate = useNavigate();
+  const { selectedHotel } = useHotels();
+  const { checkIn, checkOut, setCheckIn, setCheckOut, guests, setGuests, dateFilter } = useBooking();
+
+  // State management
+  const [roomDetails, setRoomDetails] = useState<RoomDetailsResponse | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [guestInfo, setGuestInfo] = useState<GuestInfo>({
+    fullName: '',
+    email: '',
+    phone: '',
+    phoneCountryCode: '+91',
+    idType: '',
+    idNumber: '',
+    specialRequests: '',
+  });
+  const [additionalGuests, setAdditionalGuests] = useState<AdditionalGuest[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [promoCode, setPromoCode] = useState<string>('');
+  const [promoDiscount, setPromoDiscount] = useState<number>(0);
+  const [showDateSheet, setShowDateSheet] = useState(false);
+  const [showGuestSheet, setShowGuestSheet] = useState(false);
+  const [tempCheckIn, setTempCheckIn] = useState(checkIn);
+  const [tempCheckOut, setTempCheckOut] = useState(checkOut);
+  const [tempAdults, setTempAdults] = useState(2);
+  const [tempChildren, setTempChildren] = useState(0);
+  const [formProgress, setFormProgress] = useState(0);
+
+  // Sync temp dates when checkIn/checkOut change
+  useEffect(() => {
+    setTempCheckIn(checkIn);
+    setTempCheckOut(checkOut);
+  }, [checkIn, checkOut]);
+
+  // Fetch room details
+  useEffect(() => {
+    const fetchRoomDetails = async () => {
+      if (!roomId) {
+        setIsLoading(false);
+        return;
+      }
+
+      const hotelId = hotelIdFromQuery || selectedHotel?._id;
+      if (!hotelId) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        const payload: GetRoomByIdPayload = {
+          hotelId: hotelId,
+          roomId: roomId,
+          dateFilter: dateFilter,
+          packageType: 'B2B',
+          showRoomsWithRate: true,
+        };
+
+        const response = await roomService.getRoomById(payload);
+        setRoomDetails(response);
+      } catch (err) {
+        console.error('Error fetching room details:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRoomDetails();
+    // Use checkIn and checkOut instead of dateFilter to avoid infinite loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId, hotelIdFromQuery, selectedHotel?._id, checkIn, checkOut]);
+
+  // Calculate form progress
+  useEffect(() => {
+    const requiredFields = ['fullName', 'email', 'phone', 'idType', 'idNumber'];
+    const filledFields = requiredFields.filter(
+      (field) => guestInfo[field as keyof GuestInfo]
+    ).length;
+    const progress = (filledFields / requiredFields.length) * 100;
+    setFormProgress(progress);
+  }, [guestInfo]);
+
+  // Calculate number of nights
+  const numberOfNights = useMemo(() => {
+    if (!checkIn || !checkOut) return 0;
+    const checkInDate = new Date(checkIn);
+    const checkOutDate = new Date(checkOut);
+    const diffTime = checkOutDate.getTime() - checkInDate.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  }, [checkIn, checkOut]);
+
+  // Get room data
+  const room = roomDetails?.data;
+  const selectedPricing = roomDetails?.package && roomDetails.package.length > 0
+    ? roomDetails.package.reduce((min, p) => p.netRate < min.netRate ? p : min)
+    : null;
+
+  const roomImage = room?.roomImage
+    ? (room.roomImage.startsWith('http') ? room.roomImage : `${environment.imageBaseUrl}${room.roomImage}`)
+    : 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=800';
+
+  // Calculate pricing breakdown
+  const pricingBreakdown = useMemo(() => {
+    if (!selectedPricing || numberOfNights === 0) {
+      return {
+        baseRoomPrice: 0,
+        nights: 0,
+        rooms: 1,
+        extraAdults: 0,
+        extraChildren: 0,
+        subtotal: 0,
+        taxes: 0,
+        discount: promoDiscount,
+        serviceFee: 0,
+        total: 0,
+      };
+    }
+
+    const basePrice = selectedPricing.basePrice || selectedPricing.netRate;
+    const nights = numberOfNights;
+    const rooms = 1;
+    const baseTotal = basePrice * nights * rooms;
+
+    // Calculate extra charges
+    const maxAdults = room?.maxAdults || 2;
+    const extraAdultsCount = Math.max(0, tempAdults - maxAdults);
+    const extraAdultRate = selectedPricing.extraAdultRateWithoutExtraMatress || 0;
+    const extraAdultsTotal = extraAdultsCount * extraAdultRate * nights;
+
+    const extraChildrenCount = tempChildren;
+    const extraChildRate = selectedPricing.paidChildRatewithoutExtraMatress || 0;
+    const extraChildrenTotal = extraChildrenCount * extraChildRate * nights;
+
+    const subtotal = baseTotal + extraAdultsTotal + extraChildrenTotal;
+    
+    // Calculate taxes (assuming 12% GST)
+    const taxRate = 0.12;
+    const taxes = subtotal * taxRate;
+    
+    // Service fee (2% of subtotal)
+    const serviceFee = subtotal * 0.02;
+    
+    const discount = promoDiscount;
+    const total = subtotal + taxes + serviceFee - discount;
+
+    return {
+      baseRoomPrice: basePrice,
+      nights,
+      rooms,
+      extraAdults: extraAdultsTotal,
+      extraChildren: extraChildrenTotal,
+      subtotal,
+      taxes,
+      discount,
+      serviceFee,
+      total: Math.max(0, total),
+    };
+  }, [selectedPricing, numberOfNights, tempAdults, tempChildren, promoDiscount, room]);
+
+  // Phone number formatting
+  const formatPhoneNumber = (value: string) => {
+    const cleaned = value.replace(/\D/g, '');
+    if (cleaned.length <= 10) {
+      return cleaned;
+    }
+    return cleaned.slice(0, 10);
+  };
+
+  // Handle input changes
+  const handleInputChange = (field: keyof GuestInfo, value: string) => {
+    setGuestInfo((prev) => ({ ...prev, [field]: value }));
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  const handlePhoneChange = (value: string) => {
+    const formatted = formatPhoneNumber(value);
+    handleInputChange('phone', formatted);
+  };
+
+  // Check if form is valid (without setting errors - for disabled state)
+  const isFormValid = useMemo(() => {
+    return (
+      guestInfo.fullName.trim() !== '' &&
+      guestInfo.email.trim() !== '' &&
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestInfo.email) &&
+      guestInfo.phone.trim() !== '' &&
+      guestInfo.phone.length >= 10 &&
+      guestInfo.idType !== '' &&
+      guestInfo.idNumber.trim() !== ''
+    );
+  }, [guestInfo]);
+
+  // Form validation (with error setting)
+  const validateForm = (): boolean => {
+    const newErrors: FormErrors = {};
+
+    if (!guestInfo.fullName.trim()) {
+      newErrors.fullName = 'Full name is required';
+    }
+
+    if (!guestInfo.email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestInfo.email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+
+    if (!guestInfo.phone.trim()) {
+      newErrors.phone = 'Phone number is required';
+    } else if (guestInfo.phone.length < 10) {
+      newErrors.phone = 'Please enter a valid 10-digit phone number';
+    }
+
+    if (!guestInfo.idType) {
+      newErrors.idType = 'ID type is required';
+    }
+
+    if (!guestInfo.idNumber.trim()) {
+      newErrors.idNumber = 'ID number is required';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // File upload handling
+  const handleFileUpload = useCallback((files: FileList | null) => {
+    if (!files) return;
+
+    Array.from(files).forEach((file) => {
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+      if (!validTypes.includes(file.type)) {
+        setErrors((prev) => ({
+          ...prev,
+          files: 'Please upload only JPG, PNG, or PDF files',
+        }));
+        return;
+      }
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setErrors((prev) => ({
+          ...prev,
+          files: 'File size must be less than 5MB',
+        }));
+        return;
+      }
+
+      const id = Math.random().toString(36).substring(7);
+      const preview = file.type.startsWith('image/')
+        ? URL.createObjectURL(file)
+        : '';
+
+      setUploadedFiles((prev) => [
+        ...prev,
+        {
+          id,
+          file,
+          preview,
+          type: file.type.startsWith('image/') ? 'image' : 'pdf',
+        },
+      ]);
+    });
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      handleFileUpload(e.dataTransfer.files);
+    },
+    [handleFileUpload]
+  );
+
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+  }, []);
+
+  const removeFile = (id: string) => {
+    setUploadedFiles((prev) => {
+      const file = prev.find((f) => f.id === id);
+      if (file?.preview) {
+        URL.revokeObjectURL(file.preview);
+      }
+      return prev.filter((f) => f.id !== id);
+    });
+  };
+
+  // Add additional guest
+  const addAdditionalGuest = () => {
+    const newGuest: AdditionalGuest = {
+      id: Math.random().toString(36).substring(7),
+      name: '',
+      age: 0,
+      relationship: '',
+    };
+    setAdditionalGuests((prev) => [...prev, newGuest]);
+  };
+
+  const removeAdditionalGuest = (id: string) => {
+    setAdditionalGuests((prev) => prev.filter((g) => g.id !== id));
+  };
+
+  const updateAdditionalGuest = (id: string, field: keyof AdditionalGuest, value: string | number) => {
+    setAdditionalGuests((prev) =>
+      prev.map((g) => (g.id === id ? { ...g, [field]: value } : g))
+    );
+  };
+
+  // Apply promo code
+  const applyPromoCode = () => {
+    // Simulate promo code validation
+    if (promoCode.toUpperCase() === 'WELCOME1000') {
+      setPromoDiscount(1000);
+      setErrors((prev) => ({ ...prev, promoCode: '' }));
+    } else {
+      setPromoDiscount(0);
+      setErrors((prev) => ({ ...prev, promoCode: 'Invalid promo code' }));
+    }
+  };
+
+  // Save dates from sheet
+  const saveDates = () => {
+    setCheckIn(tempCheckIn);
+    setCheckOut(tempCheckOut);
+    setShowDateSheet(false);
+  };
+
+  // Save guest count from sheet
+  const saveGuestCount = () => {
+    setGuests(tempAdults + tempChildren);
+    setShowGuestSheet(false);
+  };
+
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    // Simulate API call
+    setTimeout(() => {
+      setIsSubmitting(false);
+      // Navigate to payment page (to be implemented)
+      navigate('/payment');
+    }, 2000);
+  };
+
+  // WhatsApp message
+  const handleWhatsAppHelp = () => {
+    const hotelName = selectedHotel?.hotelName || hotelConfig.name;
+    const roomName = room?.roomsDisplayName || 'Room';
+    const message = `I need help with my booking for ${roomName} at ${hotelName}.`;
+    const whatsappNumber = selectedHotel?.whatsappNumber || hotelConfig.whatsappNumber;
+    window.open(
+      `https://wa.me/${whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`,
+      '_blank'
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground text-lg">Loading reservation details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!roomDetails || !room) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header hotel={selectedHotel} />
+        <div className="pt-24 pb-16 text-center">
+          <p className="text-muted-foreground text-lg mb-4">Room not found</p>
+          <Link to="/rooms" className="text-primary hover:underline">
+            Back to Rooms
+          </Link>
+        </div>
+        <Footer hotel={selectedHotel} />
+      </div>
+    );
+  }
+
+  const hotel = selectedHotel || null;
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Header hotel={hotel} />
+
+      {/* Breadcrumb */}
+      <div className="pt-24 pb-4 bg-muted/50">
+        <div className="container-hotel">
+          <nav className="flex items-center gap-2 text-sm">
+            <Link to="/" className="text-muted-foreground hover:text-foreground transition-colors">
+              Home
+            </Link>
+            <ChevronRight size={16} className="text-muted-foreground" />
+            <Link
+              to={hotelIdFromQuery ? `/rooms?hotelId=${hotelIdFromQuery}` : '/rooms'}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Rooms
+            </Link>
+            <ChevronRight size={16} className="text-muted-foreground" />
+            <Link
+              to={`/rooms/${roomId}${hotelIdFromQuery ? `?hotelId=${hotelIdFromQuery}` : ''}`}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {room.roomsDisplayName}
+            </Link>
+            <ChevronRight size={16} className="text-muted-foreground" />
+            <span className="text-foreground font-medium">Review & Book</span>
+          </nav>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <section className="py-8">
+        <div className="container-hotel">
+          <div className="mb-8">
+            <h1 className="font-display text-3xl sm:text-4xl font-bold text-foreground mb-2">
+              Reservation Details & Pricing Review
+            </h1>
+            <p className="text-muted-foreground">
+              Please review your booking details and complete your reservation
+            </p>
+          </div>
+
+          <div className="grid lg:grid-cols-3 gap-8">
+            {/* Left Column - Guest Information Form */}
+            <div className="lg:col-span-2 space-y-6">
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Form Progress Indicator */}
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-foreground">Form Completion</span>
+                      <span className="text-sm text-muted-foreground">{Math.round(formProgress)}%</span>
+                    </div>
+                    <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary transition-all duration-300 rounded-full"
+                        style={{ width: `${formProgress}%` }}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Primary Guest Information */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <User size={20} />
+                      Primary Guest Information
+                    </CardTitle>
+                    <CardDescription>
+                      Please provide accurate details for the primary guest
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div className="sm:col-span-2">
+                        <Label htmlFor="fullName">
+                          Full Name <span className="text-destructive">*</span>
+                        </Label>
+                        <Input
+                          id="fullName"
+                          value={guestInfo.fullName}
+                          onChange={(e) => handleInputChange('fullName', e.target.value)}
+                          placeholder="Enter your full name"
+                          className={cn(errors.fullName && 'border-destructive')}
+                        />
+                        {errors.fullName && (
+                          <p className="text-sm text-destructive mt-1 flex items-center gap-1">
+                            <AlertCircle size={14} />
+                            {errors.fullName}
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <Label htmlFor="email">
+                          Email Address <span className="text-destructive">*</span>
+                        </Label>
+                        <div className="relative">
+                          <Mail size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            id="email"
+                            type="email"
+                            value={guestInfo.email}
+                            onChange={(e) => handleInputChange('email', e.target.value)}
+                            placeholder="your.email@example.com"
+                            className={cn('pl-10', errors.email && 'border-destructive')}
+                          />
+                        </div>
+                        {errors.email && (
+                          <p className="text-sm text-destructive mt-1 flex items-center gap-1">
+                            <AlertCircle size={14} />
+                            {errors.email}
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <Label htmlFor="phone">
+                          Phone Number <span className="text-destructive">*</span>
+                        </Label>
+                        <div className="flex gap-2">
+                          <Select
+                            value={guestInfo.phoneCountryCode}
+                            onValueChange={(value) =>
+                              handleInputChange('phoneCountryCode', value)
+                            }
+                          >
+                            <SelectTrigger className="w-24">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="+91">+91 (IN)</SelectItem>
+                              <SelectItem value="+1">+1 (US)</SelectItem>
+                              <SelectItem value="+44">+44 (UK)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <div className="relative flex-1">
+                            <Phone size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                            <Input
+                              id="phone"
+                              type="tel"
+                              value={guestInfo.phone}
+                              onChange={(e) => handlePhoneChange(e.target.value)}
+                              placeholder="9876543210"
+                              maxLength={10}
+                              className={cn('pl-10', errors.phone && 'border-destructive')}
+                            />
+                          </div>
+                        </div>
+                        {errors.phone && (
+                          <p className="text-sm text-destructive mt-1 flex items-center gap-1">
+                            <AlertCircle size={14} />
+                            {errors.phone}
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <Label htmlFor="idType">
+                          ID Type <span className="text-destructive">*</span>
+                        </Label>
+                        <Select
+                          value={guestInfo.idType}
+                          onValueChange={(value) => handleInputChange('idType', value)}
+                        >
+                          <SelectTrigger className={cn(errors.idType && 'border-destructive')}>
+                            <SelectValue placeholder="Select ID type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="passport">Passport</SelectItem>
+                            <SelectItem value="aadhaar">Aadhaar</SelectItem>
+                            <SelectItem value="driving-license">Driving License</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {errors.idType && (
+                          <p className="text-sm text-destructive mt-1 flex items-center gap-1">
+                            <AlertCircle size={14} />
+                            {errors.idType}
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <Label htmlFor="idNumber">
+                          ID Number <span className="text-destructive">*</span>
+                        </Label>
+                        <Input
+                          id="idNumber"
+                          value={guestInfo.idNumber}
+                          onChange={(e) => handleInputChange('idNumber', e.target.value)}
+                          placeholder="Enter ID number"
+                          className={cn(errors.idNumber && 'border-destructive')}
+                        />
+                        {errors.idNumber && (
+                          <p className="text-sm text-destructive mt-1 flex items-center gap-1">
+                            <AlertCircle size={14} />
+                            {errors.idNumber}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Document Upload */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText size={20} />
+                      Identity Document Upload
+                    </CardTitle>
+                    <CardDescription>
+                      Upload a clear copy of your ID document (Max 5MB, PDF, JPG, or PNG)
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div
+                      onDrop={handleDrop}
+                      onDragOver={handleDragOver}
+                      className={cn(
+                        'border-2 border-dashed rounded-xl p-8 text-center transition-colors',
+                        'hover:border-primary/50 cursor-pointer bg-muted/30'
+                      )}
+                    >
+                      <input
+                        type="file"
+                        id="file-upload"
+                        className="hidden"
+                        accept="image/jpeg,image/jpg,image/png,application/pdf"
+                        multiple
+                        onChange={(e) => handleFileUpload(e.target.files)}
+                      />
+                      <label htmlFor="file-upload" className="cursor-pointer">
+                        <Upload size={32} className="mx-auto mb-4 text-muted-foreground" />
+                        <p className="text-sm font-medium text-foreground mb-1">
+                          Drag & drop files here, or click to browse
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Accepted formats: PDF, JPG, PNG (Max 5MB per file)
+                        </p>
+                      </label>
+                    </div>
+
+                    {uploadedFiles.length > 0 && (
+                      <div className="mt-4 space-y-2">
+                        {uploadedFiles.map((file) => (
+                          <div
+                            key={file.id}
+                            className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border"
+                          >
+                            {file.type === 'image' ? (
+                              <div className="w-12 h-12 rounded overflow-hidden shrink-0">
+                                <img
+                                  src={file.preview}
+                                  alt="Preview"
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            ) : (
+                              <div className="w-12 h-12 rounded bg-primary/10 flex items-center justify-center shrink-0">
+                                <FileText size={20} className="text-primary" />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-foreground truncate">
+                                {file.file.name}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {(file.file.size / 1024).toFixed(2)} KB
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeFile(file.id)}
+                              className="shrink-0"
+                            >
+                              <X size={16} />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="mt-4 flex items-start gap-2 text-xs text-muted-foreground">
+                      <Lock size={14} className="mt-0.5 shrink-0" />
+                      <span>
+                        Your documents are securely encrypted and will only be used for verification purposes.
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Additional Guests */}
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          <Users size={20} />
+                          Additional Guests
+                        </CardTitle>
+                        <CardDescription>
+                          Add details for other guests staying in the room
+                        </CardDescription>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={addAdditionalGuest}
+                      >
+                        <Plus size={16} />
+                        Add Guest
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {additionalGuests.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No additional guests added
+                      </p>
+                    ) : (
+                      <div className="space-y-4">
+                        {additionalGuests.map((guest) => (
+                          <div
+                            key={guest.id}
+                            className="p-4 rounded-lg border bg-muted/30 space-y-3"
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm font-medium text-foreground">
+                                Guest {additionalGuests.indexOf(guest) + 1}
+                              </span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeAdditionalGuest(guest.id)}
+                              >
+                                <Trash2 size={16} />
+                              </Button>
+                            </div>
+                            <div className="grid sm:grid-cols-3 gap-3">
+                              <div>
+                                <Label>Name</Label>
+                                <Input
+                                  value={guest.name}
+                                  onChange={(e) =>
+                                    updateAdditionalGuest(guest.id, 'name', e.target.value)
+                                  }
+                                  placeholder="Guest name"
+                                />
+                              </div>
+                              <div>
+                                <Label>Age</Label>
+                                <Input
+                                  type="number"
+                                  value={guest.age || ''}
+                                  onChange={(e) =>
+                                    updateAdditionalGuest(
+                                      guest.id,
+                                      'age',
+                                      parseInt(e.target.value) || 0
+                                    )
+                                  }
+                                  placeholder="Age"
+                                  min={0}
+                                  max={120}
+                                />
+                              </div>
+                              <div>
+                                <Label>Relationship (Optional)</Label>
+                                <Input
+                                  value={guest.relationship}
+                                  onChange={(e) =>
+                                    updateAdditionalGuest(guest.id, 'relationship', e.target.value)
+                                  }
+                                  placeholder="e.g., Spouse, Child"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Special Requests */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Special Requests</CardTitle>
+                    <CardDescription>
+                      Any special requirements or preferences for your stay?
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Textarea
+                      value={guestInfo.specialRequests}
+                      onChange={(e) => handleInputChange('specialRequests', e.target.value)}
+                      placeholder="e.g., Late check-in, dietary requirements, room preferences..."
+                      rows={4}
+                      className="resize-none"
+                    />
+                  </CardContent>
+                </Card>
+
+                {/* Trust Elements */}
+                <Card className="bg-primary/5 border-primary/20">
+                  <CardContent className="pt-6">
+                    <div className="flex flex-wrap items-center gap-4 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Shield size={18} className="text-primary" />
+                        <span className="text-foreground font-medium">Secure Payment</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Lock size={18} className="text-primary" />
+                        <span className="text-foreground font-medium">Privacy Protected</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Check size={18} className="text-primary" />
+                        <span className="text-foreground font-medium">Best Rate Guaranteed</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </form>
+            </div>
+
+            {/* Right Column - Booking Summary & Pricing */}
+            <div className="lg:col-span-1">
+              <div className="sticky top-28 space-y-6">
+                {/* Booking Summary */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Calendar size={20} />
+                      Booking Summary
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Hotel & Room Info */}
+                    <div className="flex gap-4">
+                      <div className="w-20 h-20 rounded-lg overflow-hidden shrink-0">
+                        <img
+                          src={roomImage}
+                          alt={room.roomsDisplayName}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-foreground mb-1 truncate">
+                          {hotel?.hotelName || hotelConfig.name}
+                        </h3>
+                        <p className="text-sm text-muted-foreground mb-1 truncate">
+                          {hotel?.locationName || hotel?.townName || hotelConfig.location}
+                        </p>
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {room.roomsDisplayName}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 pt-4 border-t">
+                      {/* Dates - Editable */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <p className="text-xs text-muted-foreground mb-1">Check-in</p>
+                          <p className="text-sm font-medium text-foreground">
+                            {checkIn
+                              ? new Date(checkIn).toLocaleDateString('en-IN', {
+                                  weekday: 'short',
+                                  day: 'numeric',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })
+                              : 'Select date'}
+                          </p>
+                        </div>
+                        <Sheet open={showDateSheet} onOpenChange={setShowDateSheet}>
+                          <SheetTrigger asChild>
+                            <Button variant="ghost" size="icon" className="shrink-0">
+                              <Edit2 size={16} />
+                            </Button>
+                          </SheetTrigger>
+                          <SheetContent side="bottom" className="h-[400px]">
+                            <SheetHeader>
+                              <SheetTitle>Modify Dates</SheetTitle>
+                              <SheetDescription>
+                                Update your check-in and check-out dates
+                              </SheetDescription>
+                            </SheetHeader>
+                            <div className="space-y-4 mt-6">
+                              <div>
+                                <Label>Check-in Date</Label>
+                                <Input
+                                  type="date"
+                                  value={tempCheckIn}
+                                  onChange={(e) => setTempCheckIn(e.target.value)}
+                                  min={new Date().toISOString().split('T')[0]}
+                                />
+                              </div>
+                              <div>
+                                <Label>Check-out Date</Label>
+                                <Input
+                                  type="date"
+                                  value={tempCheckOut}
+                                  onChange={(e) => setTempCheckOut(e.target.value)}
+                                  min={tempCheckIn || new Date().toISOString().split('T')[0]}
+                                />
+                              </div>
+                              <Button onClick={saveDates} className="w-full">
+                                Save Changes
+                              </Button>
+                            </div>
+                          </SheetContent>
+                        </Sheet>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <p className="text-xs text-muted-foreground mb-1">Check-out</p>
+                          <p className="text-sm font-medium text-foreground">
+                            {checkOut
+                              ? new Date(checkOut).toLocaleDateString('en-IN', {
+                                  weekday: 'short',
+                                  day: 'numeric',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })
+                              : 'Select date'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <p className="text-xs text-muted-foreground mb-1">Duration</p>
+                          <p className="text-sm font-medium text-foreground">
+                            {numberOfNights} {numberOfNights === 1 ? 'night' : 'nights'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Guests - Editable */}
+                      <div className="flex items-center justify-between pt-3 border-t">
+                        <div className="flex-1">
+                          <p className="text-xs text-muted-foreground mb-1">Guests</p>
+                          <p className="text-sm font-medium text-foreground">
+                            {tempAdults} {tempAdults === 1 ? 'Adult' : 'Adults'}
+                            {tempChildren > 0 && `, ${tempChildren} ${tempChildren === 1 ? 'Child' : 'Children'}`}
+                          </p>
+                        </div>
+                        <Sheet open={showGuestSheet} onOpenChange={setShowGuestSheet}>
+                          <SheetTrigger asChild>
+                            <Button variant="ghost" size="icon" className="shrink-0">
+                              <Edit2 size={16} />
+                            </Button>
+                          </SheetTrigger>
+                          <SheetContent side="bottom" className="h-[400px]">
+                            <SheetHeader>
+                              <SheetTitle>Modify Guest Count</SheetTitle>
+                              <SheetDescription>
+                                Update the number of adults and children
+                              </SheetDescription>
+                            </SheetHeader>
+                            <div className="space-y-4 mt-6">
+                              <div>
+                                <Label>Adults</Label>
+                                <Input
+                                  type="number"
+                                  value={tempAdults}
+                                  onChange={(e) => setTempAdults(parseInt(e.target.value) || 1)}
+                                  min={1}
+                                  max={room?.maxAdults || 4}
+                                />
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Max {room?.maxAdults || 4} adults
+                                </p>
+                              </div>
+                              <div>
+                                <Label>Children</Label>
+                                <Input
+                                  type="number"
+                                  value={tempChildren}
+                                  onChange={(e) => setTempChildren(parseInt(e.target.value) || 0)}
+                                  min={0}
+                                  max={room?.maxChilds || 2}
+                                />
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Max {room?.maxChilds || 2} children
+                                </p>
+                              </div>
+                              <Button onClick={saveGuestCount} className="w-full">
+                                Save Changes
+                              </Button>
+                            </div>
+                          </SheetContent>
+                        </Sheet>
+                      </div>
+                    </div>
+
+                    {/* Meal Plan */}
+                    {selectedPricing?.breakfastIncluded && (
+                      <div className="pt-3 border-t">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Check size={16} className="text-hotel-secondary shrink-0" />
+                          <span className="text-foreground">Breakfast Included</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Cancellation Policy Link */}
+                    <div className="pt-3 border-t">
+                      <Button variant="link" className="p-0 h-auto text-xs" asChild>
+                        <Link to="/contact">View Cancellation Policy</Link>
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Pricing Breakdown */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <CreditCard size={20} />
+                      Pricing Breakdown
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                        {/* Promo Code */}
+                        <div className="space-y-2">
+                          <Label>Promo Code</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              value={promoCode}
+                              onChange={(e) => setPromoCode(e.target.value)}
+                              placeholder="Enter code"
+                              className="flex-1"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={applyPromoCode}
+                              disabled={!promoCode}
+                            >
+                              Apply
+                            </Button>
+                          </div>
+                          {promoDiscount > 0 && (
+                            <p className="text-sm text-hotel-secondary flex items-center gap-1">
+                              <Check size={14} />
+                              Discount of {hotelConfig.currencySymbol}{promoDiscount.toLocaleString()} applied!
+                            </p>
+                          )}
+                          {errors.promoCode && (
+                            <p className="text-sm text-destructive">{errors.promoCode}</p>
+                          )}
+                        </div>
+
+                        {/* Price Breakdown Accordion */}
+                        <Accordion type="single" collapsible className="w-full">
+                          <AccordionItem value="breakdown">
+                            <AccordionTrigger className="text-sm">
+                              View Price Breakdown
+                            </AccordionTrigger>
+                            <AccordionContent>
+                              <div className="space-y-2 pt-2">
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-muted-foreground">
+                                    Base Rate × {pricingBreakdown.nights} nights
+                                  </span>
+                                  <span className="text-foreground">
+                                    {hotelConfig.currencySymbol}
+                                    {(pricingBreakdown.baseRoomPrice * pricingBreakdown.nights).toLocaleString()}
+                                  </span>
+                                </div>
+                                {pricingBreakdown.extraAdults > 0 && (
+                                  <div className="flex justify-between text-sm">
+                                    <span className="text-muted-foreground">Extra Adults</span>
+                                    <span className="text-foreground">
+                                      {hotelConfig.currencySymbol}
+                                      {pricingBreakdown.extraAdults.toLocaleString()}
+                                    </span>
+                                  </div>
+                                )}
+                                {pricingBreakdown.extraChildren > 0 && (
+                                  <div className="flex justify-between text-sm">
+                                    <span className="text-muted-foreground">Extra Children</span>
+                                    <span className="text-foreground">
+                                      {hotelConfig.currencySymbol}
+                                      {pricingBreakdown.extraChildren.toLocaleString()}
+                                    </span>
+                                  </div>
+                                )}
+                                <div className="flex justify-between text-sm pt-2 border-t">
+                                  <span className="text-foreground font-medium">Subtotal</span>
+                                  <span className="text-foreground font-medium">
+                                    {hotelConfig.currencySymbol}
+                                    {pricingBreakdown.subtotal.toLocaleString()}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-muted-foreground flex items-center gap-1">
+                                    Taxes (12% GST)
+                                    <Info size={12} className="cursor-help" />
+                                  </span>
+                                  <span className="text-foreground">
+                                    {hotelConfig.currencySymbol}
+                                    {pricingBreakdown.taxes.toLocaleString()}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-muted-foreground">Service Fee</span>
+                                  <span className="text-foreground">
+                                    {hotelConfig.currencySymbol}
+                                    {pricingBreakdown.serviceFee.toLocaleString()}
+                                  </span>
+                                </div>
+                                {pricingBreakdown.discount > 0 && (
+                                  <div className="flex justify-between text-sm text-hotel-secondary">
+                                    <span>Discount</span>
+                                    <span>
+                                      -{hotelConfig.currencySymbol}
+                                      {pricingBreakdown.discount.toLocaleString()}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </AccordionContent>
+                          </AccordionItem>
+                        </Accordion>
+
+                        {/* Total */}
+                        <div className="pt-4 border-t">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-lg font-semibold text-foreground">Total Payable</span>
+                            <span className="text-2xl font-bold text-primary">
+                              {hotelConfig.currencySymbol}
+                              {pricingBreakdown.total.toLocaleString()}
+                            </span>
+                          </div>
+                          {pricingBreakdown.discount > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              You saved {hotelConfig.currencySymbol}
+                              {pricingBreakdown.discount.toLocaleString()}!
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                  </CardContent>
+                </Card>
+
+                {/* Action Buttons */}
+                <div className="space-y-3">
+                  <Button
+                    variant="booking"
+                    size="xl"
+                    className="w-full"
+                    onClick={handleSubmit}
+                    disabled={isSubmitting || !isFormValid}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard size={20} />
+                        Proceed to Payment
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    variant="whatsapp"
+                    size="lg"
+                    className="w-full"
+                    onClick={handleWhatsAppHelp}
+                    type="button"
+                  >
+                    <MessageCircle size={18} />
+                    Need Help? WhatsApp Us
+                  </Button>
+
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      className="flex-1"
+                      onClick={() => navigate(-1)}
+                      type="button"
+                    >
+                      Back
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="lg"
+                      className="flex-1"
+                      type="button"
+                    >
+                      Save Draft
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Trust Badges */}
+                <div className="text-center space-y-2 pt-4 border-t">
+                  <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <Shield size={14} />
+                      <span>Secure</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Lock size={14} />
+                      <span>Encrypted</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Check size={14} />
+                      <span>Guaranteed</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Free cancellation up to 48 hours before check-in
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Mobile Sticky Bottom Bar */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-card border-t shadow-elevated p-4 z-50">
+        <div className="container-hotel">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-xs text-muted-foreground">Total Payable</p>
+              <p className="text-xl font-bold text-primary">
+                {hotelConfig.currencySymbol}
+                {pricingBreakdown.total.toLocaleString()}
+              </p>
+            </div>
+            <Button
+              variant="booking"
+              size="lg"
+              onClick={handleSubmit}
+              disabled={isSubmitting || !isFormValid}
+              className="flex-1 max-w-[200px]"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                'Proceed to Payment'
+              )}
+            </Button>
+          </div>
+          <p className="text-xs text-center text-muted-foreground">
+            Free cancellation up to 48 hours before check-in
+          </p>
+        </div>
+      </div>
+
+      <Footer hotel={hotel} />
+      <WhatsAppButton />
+    </div>
+  );
+}

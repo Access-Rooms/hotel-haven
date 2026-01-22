@@ -623,8 +623,17 @@ export default function RoomDetails() {
 
                 {/* CTA Buttons */}
                 <div className="space-y-3">
-                  <Button variant="booking" size="xl" className="w-full">
-                    Reserve Now
+                  <Button 
+                    variant="booking" 
+                    size="xl" 
+                    className="w-full"
+                    asChild
+                  >
+                    <Link 
+                      to={`/reservation/${roomId}${hotelIdFromQuery ? `?hotelId=${hotelIdFromQuery}` : ''}`}
+                    >
+                      Reserve Now
+                    </Link>
                   </Button>
                   <Button
                     variant="whatsapp"

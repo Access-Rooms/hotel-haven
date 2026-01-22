@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, useMemo, ReactNode } from 'react';
 import { DateFilter } from '@/models/common.models';
 
 interface BookingContextType {
@@ -41,13 +41,13 @@ export function BookingProvider({ children }: BookingProviderProps) {
   const [checkOut, setCheckOut] = useState<string>(formatDateForInput(tomorrow));
   const [guests, setGuests] = useState<number>(2);
 
-  // Create date filter with milliseconds
-  const dateFilter: DateFilter = {
+  // Create date filter with milliseconds (memoized to prevent infinite re-renders)
+  const dateFilter: DateFilter = useMemo(() => ({
     from: dateStringToMilliseconds(checkIn),
     to: dateStringToMilliseconds(checkOut),
-  };
+  }), [checkIn, checkOut]);
 
-  const value: BookingContextType = {
+  const value: BookingContextType = useMemo(() => ({
     checkIn,
     checkOut,
     guests,
@@ -55,7 +55,7 @@ export function BookingProvider({ children }: BookingProviderProps) {
     setCheckIn,
     setCheckOut,
     setGuests,
-  };
+  }), [checkIn, checkOut, guests, dateFilter]);
 
   return <BookingContext.Provider value={value}>{children}</BookingContext.Provider>;
 }
