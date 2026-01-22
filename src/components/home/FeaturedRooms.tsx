@@ -106,7 +106,7 @@ export function FeaturedRooms({ hotels }: FeaturedRoomsProps) {
               }
               const roomPrice = isApiRoom 
                 ? (room.pricing && room.pricing.length > 0 
-                    ? Math.min(...room.pricing.map(p => p.netRate))
+                    ? Math.min(...room.pricing.map(p => p.basePrice))
                     : 0)
                 : (room as any).price;
               const roomGuests = isApiRoom ? room.totalOccupency : (room as any).maxGuests;
@@ -148,9 +148,19 @@ export function FeaturedRooms({ hotels }: FeaturedRoomsProps) {
 
                   {/* Content */}
                   <div className="p-6">
-                    <h3 className="font-display text-xl font-semibold text-foreground mb-2 group-hover:text-primary transition-colors">
-                      {roomName}
-                    </h3>
+                    <div className="flex items-start justify-between mb-2">
+                      <h3 className="font-display text-xl font-semibold text-foreground group-hover:text-primary transition-colors">
+                        {roomName}
+                      </h3>
+                      {roomPrice > 0 && (
+                        <div className="text-right ml-4">
+                          <div className="text-hotel-secondary font-bold text-lg">
+                            {hotelConfig.currencySymbol}{roomPrice.toLocaleString()}
+                          </div>
+                          <div className="text-xs text-muted-foreground">per night</div>
+                        </div>
+                      )}
+                    </div>
                     {roomDescription && (
                       <p className="text-muted-foreground text-sm mb-4">
                         {roomDescription}

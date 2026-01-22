@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { CalendarDays, Users, ChevronDown, Search } from 'lucide-react';
+import { CalendarDays, Users, ChevronDown, Search, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { hotelConfig } from '@/data/hotelData';
 import { cn } from '@/lib/utils';
 import { Hotel } from '@/models/home.models';
 import { useBooking } from '@/contexts/BookingContext';
+import { useHotels } from '@/contexts/HotelContext';
 
 interface HeroSectionProps {
   hotels?: Hotel[];
@@ -13,7 +14,32 @@ interface HeroSectionProps {
 
 export function HeroSection({ hotels }: HeroSectionProps) {
   const { checkIn, checkOut, guests, setCheckIn, setCheckOut, setGuests } = useBooking();
-  const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(hotels?.[0] || null);
+  const { selectedHotel: contextSelectedHotel, setSelectedHotel: setContextSelectedHotel } = useHotels();
+  const [localSelectedHotel, setLocalSelectedHotel] = useState<Hotel | null>(
+    contextSelectedHotel || hotels?.[0] || null
+  );
+  console.log(hotels, 'hotels');
+  
+
+  // Update local hotel when context or hotels prop changes
+  useEffect(() => {
+    if (contextSelectedHotel) {
+      setLocalSelectedHotel(contextSelectedHotel);
+    } else if (hotels?.[0]) {
+      setLocalSelectedHotel(hotels[0]);
+    }
+  }, [contextSelectedHotel, hotels]);
+
+  // Handle hotel selection change
+  const handleHotelChange = (hotelId: string) => {
+    const hotel = hotels?.find(h => h._id === hotelId);
+    if (hotel) {
+      setLocalSelectedHotel(hotel);
+      setContextSelectedHotel(hotel);
+    }
+  };
+
+  const showHotelSelector = hotels && hotels.length > 1;
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
@@ -32,20 +58,20 @@ export function HeroSection({ hotels }: HeroSectionProps) {
       <div className="relative z-10 container-hotel text-center pt-20 pb-32">
         <div className="max-w-4xl mx-auto space-y-6 animate-fade-up">
           <p className="text-hotel-secondary font-medium tracking-wider uppercase text-sm">
-            Welcome to {selectedHotel?.hotelName}
+            Welcome to {localSelectedHotel?.hotelName}
           </p>
           <h1 className="font-display text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-card leading-tight">
-            {selectedHotel?.hotelName}
+            {localSelectedHotel?.hotelName}
           </h1>
           <p className="text-card/90 text-lg sm:text-xl max-w-2xl mx-auto">
-            {hotelConfig?.tagline}. Discover the perfect blend of luxury, comfort, and breathtaking ocean views at {selectedHotel?.locationName}.
+            {hotelConfig?.tagline}. Discover the perfect blend of luxury, comfort, and breathtaking ocean views at {localSelectedHotel?.locationName}.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
             <Button variant="hero" size="xl" asChild>
-              <Link to="/rooms">Explore Rooms</Link>
+              <Link to={localSelectedHotel?._id ? `/rooms?hotelId=${localSelectedHotel._id}` : '/rooms'}>Explore Rooms</Link>
             </Button>
             <Button variant="heroOutline" size="xl" asChild>
-              <Link to="/gallery">View Gallery</Link>
+              <Link to={localSelectedHotel?._id ? `/gallery?hotelId=${localSelectedHotel._id}` : '/gallery'}>View Gallery</Link>
             </Button>
           </div>
         </div>
@@ -53,7 +79,36 @@ export function HeroSection({ hotels }: HeroSectionProps) {
         {/* Booking Widget */}
         <div className="mt-16 max-w-5xl mx-auto animate-slide-up" style={{ animationDelay: '0.3s' }}>
           <div className="booking-widget">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className={cn(
+              "grid gap-4",
+              showHotelSelector 
+                ? "grid-cols-1 md:grid-cols-5" 
+                : "grid-cols-1 md:grid-cols-4"
+            )}>
+              {/* Hotel Selector - Only show if multiple hotels */}
+              {showHotelSelector && (
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Property
+                  </label>
+                  <div className="relative">
+                    <Building2 size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <select
+                      value={localSelectedHotel?._id || ''}
+                      onChange={(e) => handleHotelChange(e.target.value)}
+                      className="w-full pl-10 pr-10 py-3 rounded-xl bg-muted border-0 focus:ring-2 focus:ring-primary text-foreground appearance-none cursor-pointer"
+                    >
+                      {hotels?.map((hotel) => (
+                        <option key={hotel._id} value={hotel._id}>
+                          {hotel.hotelName}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                  </div>
+                </div>
+              )}
+
               {/* Check-in */}
               <div className="space-y-2">
                 <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -114,7 +169,7 @@ export function HeroSection({ hotels }: HeroSectionProps) {
                   Search
                 </label>
                 <Button variant="booking" size="lg" className="w-full h-[50px]" asChild>
-                  <Link to="/rooms">
+                  <Link to={localSelectedHotel?._id ? `/rooms?hotelId=${localSelectedHotel._id}` : '/rooms'}>
                     <Search size={18} />
                     Check Availability
                   </Link>
