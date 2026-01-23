@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { MessageCircle, X } from 'lucide-react';
-import { useBooking } from '@/contexts/BookingContext';
-import { companyConfig } from '@/data/companyData';
+import { hotelConfig } from '@/data/hotelData';
 import { cn } from '@/lib/utils';
 
 const quickMessages = [
@@ -13,34 +12,18 @@ const quickMessages = [
 
 export function WhatsAppButton() {
   const [isOpen, setIsOpen] = useState(false);
-  const { selectedLocation, selectedHotel, selectedRoom } = useBooking();
-
-  const getContextMessage = (baseMessage: string) => {
-    const parts = [baseMessage];
-    if (selectedRoom && selectedHotel) {
-      parts.push(`for ${selectedRoom.name} at ${selectedHotel.name}`);
-    } else if (selectedHotel) {
-      parts.push(`at ${selectedHotel.name}`);
-    }
-    if (selectedLocation) {
-      parts.push(`in ${selectedLocation.name}`);
-    }
-    return parts.join(' ');
-  };
-
-  const whatsappNumber = selectedHotel?.whatsappNumber || companyConfig.whatsappNumber;
 
   const handleQuickMessage = (message: string) => {
-    const contextualMessage = getContextMessage(message);
-    const encodedMessage = encodeURIComponent(contextualMessage);
+    const encodedMessage = encodeURIComponent(message);
     window.open(
-      `https://wa.me/${whatsappNumber.replace(/\D/g, '')}?text=${encodedMessage}`,
+      `https://wa.me/${hotelConfig.whatsappNumber.replace(/\D/g, '')}?text=${encodedMessage}`,
       '_blank'
     );
   };
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
+      {/* Quick Actions Panel */}
       <div className={cn(
         'absolute bottom-20 right-0 w-72 bg-card rounded-2xl shadow-elevated overflow-hidden transition-all duration-300 origin-bottom-right',
         isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0 pointer-events-none'
@@ -48,7 +31,7 @@ export function WhatsAppButton() {
         <div className="bg-whatsapp p-4">
           <h4 className="text-white font-semibold">Chat with us</h4>
           <p className="text-white/80 text-sm mt-1">
-            {selectedHotel ? `${selectedHotel.name}` : companyConfig.name}
+            Hi! How can we help you today?
           </p>
         </div>
         <div className="p-4 space-y-2">
@@ -64,7 +47,7 @@ export function WhatsAppButton() {
         </div>
         <div className="px-4 pb-4">
           <button
-            onClick={() => handleQuickMessage('Hello, I have a question')}
+            onClick={() => handleQuickMessage('Hello, I have a question about my stay.')}
             className="w-full py-3 bg-whatsapp text-white rounded-xl font-semibold hover:bg-whatsapp-dark transition-colors"
           >
             Start Chat
@@ -72,9 +55,13 @@ export function WhatsAppButton() {
         </div>
       </div>
 
+      {/* Main Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={cn('whatsapp-float', isOpen && 'rotate-180')}
+        className={cn(
+          'whatsapp-float',
+          isOpen && 'rotate-180'
+        )}
         aria-label="Chat on WhatsApp"
       >
         {isOpen ? (
@@ -84,6 +71,7 @@ export function WhatsAppButton() {
         )}
       </button>
 
+      {/* Tooltip */}
       {!isOpen && (
         <div className="absolute bottom-20 right-0 bg-card rounded-lg px-4 py-2 shadow-card whitespace-nowrap animate-fade-up">
           <p className="text-sm font-medium">Need help? Chat with us!</p>
