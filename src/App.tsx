@@ -12,6 +12,9 @@ import ReservationReview from "./pages/ReservationReview";
 import Gallery from "./pages/Gallery";
 import Contact from "./pages/Contact";
 import NotFound from "./pages/NotFound";
+import Login from "./pages/Login";
+import Signup from "./pages/Signup";
+import VerifyOTP from "./pages/VerifyOTP";
 
 const queryClient = new QueryClient();
 
@@ -22,7 +25,7 @@ const App = () => (
         <HotelProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter basename="/hotel-demo">
+          <BrowserRouter>
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/rooms" element={<Rooms />} />
@@ -30,6 +33,9 @@ const App = () => (
               <Route path="/reservation/:roomId" element={<ReservationReview />} />
               <Route path="/gallery" element={<Gallery />} />
               <Route path="/contact" element={<Contact />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
+              <Route path="/verify-otp" element={<VerifyOTP />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
