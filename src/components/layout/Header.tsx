@@ -9,6 +9,7 @@ import { Hotel } from '@/models/home.models';
 const navLinks = [
   { name: 'Home', href: '/' },
   { name: 'Rooms', href: '/rooms' },
+  { name: 'My Bookings', href: '/bookings' },
   { name: 'Gallery', href: '/gallery' },
   { name: 'Contact', href: '/contact' },
 ];
