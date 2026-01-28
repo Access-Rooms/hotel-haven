@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useSearchParams, Link, Navigate } from 'react-router-dom';
+import { useParams, useSearchParams, Link, Navigate, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Users, Maximize, Check, Calendar, MessageCircle, Bed, Baby, Eye, Layers, Youtube } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
@@ -12,10 +12,12 @@ import { RoomDetailsResponse, Room, GetRoomByIdPayload } from '@/models/room.mod
 import { environment } from '../../environment';
 import { useHotels } from '@/contexts/HotelContext';
 import { useBooking } from '@/contexts/BookingContext';
+import { AuthService } from '@/services/auth.service';
 
 export default function RoomDetails() {
   const { roomId } = useParams();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const hotelIdFromQuery = searchParams.get('hotelId');
   const { selectedHotel } = useHotels();
   const { checkIn, checkOut, setCheckIn, setCheckOut, dateFilter } = useBooking();
@@ -173,6 +175,14 @@ export default function RoomDetails() {
     if (roomImages.length > 0) {
       setCurrentImageIndex((prev) => (prev - 1 + roomImages.length) % roomImages.length);
     }
+  };
+
+  const handleReserveNow = () => {
+    if (!AuthService.isLoggedIn()) {
+      navigate('/login');
+      return;
+    }
+    navigate(`/reservation/${roomId}${hotelIdFromQuery ? `?hotelId=${hotelIdFromQuery}` : ''}`);
   };
 
   const handleWhatsAppBooking = () => {
@@ -627,13 +637,9 @@ export default function RoomDetails() {
                     variant="booking" 
                     size="xl" 
                     className="w-full"
-                    asChild
+                    onClick={handleReserveNow}
                   >
-                    <Link 
-                      to={`/reservation/${roomId}${hotelIdFromQuery ? `?hotelId=${hotelIdFromQuery}` : ''}`}
-                    >
-                      Reserve Now
-                    </Link>
+                    Reserve Now
                   </Button>
                   <Button
                     variant="whatsapp"

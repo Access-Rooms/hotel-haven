@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { authService } from "@/services/auth.service";
 
 type FormState = "idle" | "loading" | "success" | "error";
 
@@ -53,24 +54,16 @@ const Login = () => {
     setFormState("loading");
     setErrors({});
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    // Simulate error for demo (wrong password)
-    if (password === "wrong") {
+    const response = await authService.login({ phoneNumber: phone, password });
+    if (response.status) {
+      setFormState("success");
+      localStorage.setItem("user", JSON.stringify(response.data));
+      navigate("/");
+    } else {
       setFormState("error");
-      setErrors({
-        general: "Invalid phone number or password. Please try again.",
-      });
-      return;
+      setErrors({ general: response.msg });
     }
 
-    setFormState("success");
-
-    // Redirect after success
-    setTimeout(() => {
-      navigate("/");
-    }, 1000);
   };
 
   return (

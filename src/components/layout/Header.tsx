@@ -1,10 +1,18 @@
 import { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, Phone } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Menu, X, Phone, User, LogOut, Calendar, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { hotelConfig } from '@/data/hotelData';
 import { cn } from '@/lib/utils';
 import { Hotel } from '@/models/home.models';
+import { authService, AuthService } from '@/services/auth.service';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 const navLinks = [
   { name: 'Home', href: '/' },
@@ -18,7 +26,10 @@ export function Header({ hotel }: { hotel: Hotel | null }) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(hotel);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userName, setUserName] = useState('');
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (hotel) {
@@ -38,8 +49,28 @@ export function Header({ hotel }: { hotel: Hotel | null }) {
     setIsMobileMenuOpen(false);
   }, [location]);
 
+  useEffect(() => {
+    // Check login status on mount and when location changes
+    const loggedIn = AuthService.isLoggedIn();
+    setIsLoggedIn(loggedIn);
+    if (loggedIn) {
+      setUserName(AuthService.getUserName());
+    }
+  }, [location]);
+
   // Check if we're on the home page with a hero section (for light text on dark background)
   const isHomePage = location.pathname === '/';
+
+  // Type-safe variant selection
+  const buttonVariant = (isScrolled || !isHomePage ? 'default' : 'heroOutline') as 'default' | 'heroOutline';
+  const buttonSize = 'default' as const;
+
+  const handleLogout = () => {
+    AuthService.logout();
+    setIsLoggedIn(false);
+    setUserName('');
+    navigate('/');
+  };
   
   return (
     <header
@@ -105,7 +136,53 @@ export function Header({ hotel }: { hotel: Hotel | null }) {
               <Phone size={16} />
               <span className="hidden lg:inline">{selectedHotel?.contactDetails.phoneNumber[0]}</span>
             </a>
-            <Button variant={isScrolled || !isHomePage ? 'default' : 'heroOutline'} size="default" asChild>
+            {isLoggedIn ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className={cn(
+                      'flex items-center gap-2 px-3 py-2 rounded-lg transition-colors',
+                      isScrolled || !isHomePage
+                        ? 'text-foreground hover:bg-muted'
+                        : 'text-card hover:bg-card/10'
+                    )}
+                  >
+                    <div className="w-8 h-8 rounded-full bg-gradient-hero flex items-center justify-center">
+                      <User size={16} className="text-primary-foreground" />
+                    </div>
+                    <span className="text-sm font-medium hidden lg:inline">{userName || 'User'}</span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem asChild>
+                    <Link to="/bookings" className="flex items-center gap-2 cursor-pointer">
+                      <Calendar size={16} />
+                      Bookings
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to="/chart" className="flex items-center gap-2 cursor-pointer">
+                      <BarChart3 size={16} />
+                      Chart
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} className="flex items-center gap-2 cursor-pointer text-destructive focus:text-destructive">
+                    <LogOut size={16} />
+                    Logout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button 
+                {...({ variant: buttonVariant, size: buttonSize, asChild: true } as any)}
+              >
+                <Link to="/login">Login</Link>
+              </Button>
+            )}
+            <Button 
+              {...({ variant: buttonVariant, size: buttonSize, asChild: true } as any)}
+            >
               <Link to={`/rooms?hotelId=${selectedHotel?._id}`}>Book Now</Link>
             </Button>
           </div>
@@ -151,7 +228,40 @@ export function Header({ hotel }: { hotel: Hotel | null }) {
               <Phone size={18} />
               {selectedHotel?.contactDetails.phoneNumber[0]}
             </a>
-            <Button variant="booking" size="lg" className="w-full" asChild>
+            {isLoggedIn ? (
+              <>
+                <Link
+                  to="/bookings"
+                  className="flex items-center gap-3 py-3 px-4 rounded-lg font-medium transition-colors text-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <Calendar size={18} />
+                  Bookings
+                </Link>
+                <Link
+                  to="/chart"
+                  className="flex items-center gap-3 py-3 px-4 rounded-lg font-medium transition-colors text-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <BarChart3 size={18} />
+                  Chart
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-3 py-3 px-4 rounded-lg font-medium transition-colors text-destructive hover:bg-muted hover:text-foreground w-full text-left"
+                >
+                  <LogOut size={18} />
+                  Logout
+                </button>
+              </>
+            ) : (
+              <Button 
+                {...({ variant: "booking", size: "lg", asChild: true, className: "w-full" } as any)}
+              >
+                <Link to="/login">Login</Link>
+              </Button>
+            )}
+            <Button 
+              {...({ variant: "booking", size: "lg", asChild: true, className: "w-full" } as any)}
+            >
               <Link to="/rooms">Book Now</Link>
             </Button>
           </div>

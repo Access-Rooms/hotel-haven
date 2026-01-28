@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Loader2, AlertCircle, CheckCircle2, Mail, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { authService } from "@/services/auth.service";
 
 type FormState = "idle" | "loading" | "success" | "error";
 
@@ -122,25 +123,24 @@ const Signup = () => {
 
     setFormState("loading");
     setErrors({});
-
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    // Simulate existing email error for demo
-    if (formData.email === "existing@example.com") {
-      setFormState("error");
-      setErrors({
-        email: "This email is already registered. Try logging in instead.",
-      });
-      return;
+    const payload = {
+      phoneNumber: formData.phone,
+      name: formData.firstName + " " + formData.lastName,
+      email: formData.email,
+      password: formData.password,
+      whatsappCountryCode: formData.countryCode
     }
 
-    setFormState("success");
-
-    // Redirect to OTP verification
-    setTimeout(() => {
+    const response = await authService.signup(payload);
+    console.log(response);
+    if (response.status == true) {
+      setFormState("success");
       navigate("/verify-otp", { state: { email: formData.email } });
-    }, 1000);
+    } else {
+      setFormState("error");
+      setErrors({ general: response.msg });
+    }
+    
   };
 
   return (
