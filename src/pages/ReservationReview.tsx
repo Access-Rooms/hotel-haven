@@ -12,6 +12,7 @@ import {
   MessageCircle,
   ChevronRight,
   Plus,
+  Minus,
   Trash2,
   Loader2,
   AlertCircle,
@@ -38,6 +39,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  RadioGroup,
+  RadioGroupItem,
+} from '@/components/ui/radio-group';
+import {
   Accordion,
   AccordionContent,
   AccordionItem,
@@ -50,6 +55,14 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import {
   Sheet,
   SheetContent,
@@ -65,6 +78,9 @@ import { environment } from '../../environment';
 import { useHotels } from '@/contexts/HotelContext';
 import { useBooking } from '@/contexts/BookingContext';
 import { hotelConfig } from '@/data/hotelData';
+import { AuthService } from '@/services/auth.service';
+import bookingsService from '@/services/bookings.service';
+import { BookingRequest } from '@/models/bookings.models';
 
 interface GuestInfo {
   fullName: string;
@@ -126,13 +142,44 @@ export default function ReservationReview() {
   const [tempCheckOut, setTempCheckOut] = useState(checkOut);
   const [tempAdults, setTempAdults] = useState(2);
   const [tempChildren, setTempChildren] = useState(0);
+  const [roomCount, setRoomCount] = useState(1);
   const [formProgress, setFormProgress] = useState(0);
+  const [bookingFor, setBookingFor] = useState<'myself' | 'someone-else'>('myself');
 
   // Sync temp dates when checkIn/checkOut change
   useEffect(() => {
     setTempCheckIn(checkIn);
     setTempCheckOut(checkOut);
   }, [checkIn, checkOut]);
+
+  // Prefill form when booking for myself
+  useEffect(() => {
+    if (bookingFor === 'myself') {
+      const user = AuthService.getUser();
+      if (user) {
+        setGuestInfo((prev) => ({
+          ...prev,
+          fullName: user.name || '',
+          email: user.email || '',
+          phone: user.phoneNumber || '',
+          phoneCountryCode: user.whatsappCountryCode || '+91',
+          // idType and idNumber are not in user model, so keep them as is
+          // specialRequests is preserved
+        }));
+      }
+    } else {
+      // Clear form when switching to "someone else" but preserve specialRequests
+      setGuestInfo((prev) => ({
+        fullName: '',
+        email: '',
+        phone: '',
+        phoneCountryCode: '+91',
+        idType: '',
+        idNumber: '',
+        specialRequests: prev.specialRequests, // Preserve special requests
+      }));
+    }
+  }, [bookingFor]);
 
   // Fetch room details
   useEffect(() => {
@@ -174,7 +221,7 @@ export default function ReservationReview() {
 
   // Calculate form progress
   useEffect(() => {
-    const requiredFields = ['fullName', 'email', 'phone', 'idType', 'idNumber'];
+    const requiredFields = ['fullName', 'email', 'phone'];
     const filledFields = requiredFields.filter(
       (field) => guestInfo[field as keyof GuestInfo]
     ).length;
@@ -193,9 +240,41 @@ export default function ReservationReview() {
 
   // Get room data
   const room = roomDetails?.data;
-  const selectedPricing = roomDetails?.package && roomDetails.package.length > 0
-    ? roomDetails.package.reduce((min, p) => p.netRate < min.netRate ? p : min)
-    : null;
+  
+  // Calculate required room count based on occupancy
+  const calculateRequiredRoomCount = useMemo(() => {
+    if (!room?.totalOccupency) return 1;
+    const totalGuests = tempAdults + tempChildren;
+    return Math.max(1, Math.ceil(totalGuests / room.totalOccupency));
+  }, [tempAdults, tempChildren, room?.totalOccupency]);
+
+  // Auto-update room count when guests change or room details load (if it's below required)
+  useEffect(() => {
+    if (room?.totalOccupency && roomCount < calculateRequiredRoomCount) {
+      setRoomCount(calculateRequiredRoomCount);
+    }
+  }, [calculateRequiredRoomCount, roomCount, room?.totalOccupency]);
+
+  // Find pricing package that matches room count (or closest)
+  // Use room.pricing if available, otherwise fallback to roomDetails.package
+  const selectedPricing = useMemo(() => {
+    const pricingArray = room?.pricing || roomDetails?.package || [];
+    
+    if (!pricingArray || pricingArray.length === 0) return null;
+    
+    // Try to find exact match first
+    let match = pricingArray.find((p: any) => p.roomCount === roomCount);
+    
+    // If no exact match, find the closest (prefer higher roomCount packages)
+    if (!match) {
+      const sorted = [...pricingArray].sort((a: any, b: any) => a.roomCount - b.roomCount);
+      // Find the package with roomCount >= our roomCount, or the highest available
+      match = sorted.find((p: any) => p.roomCount >= roomCount) || sorted[sorted.length - 1];
+    }
+    
+    // If still no match, return the one with lowest netRate
+    return match || pricingArray.reduce((min: any, p: any) => p.netRate < min.netRate ? p : min);
+  }, [room?.pricing, roomDetails?.package, roomCount]);
 
   const roomImage = room?.roomImage
     ? (room.roomImage.startsWith('http') ? room.roomImage : `${environment.imageBaseUrl}${room.roomImage}`)
@@ -213,37 +292,55 @@ export default function ReservationReview() {
         subtotal: 0,
         taxes: 0,
         discount: promoDiscount,
-        serviceFee: 0,
         total: 0,
+        hasGST: false,
+        gstPercentage: 0,
+        amountToPayNow: 0,
+        totalToPayNow: 0,
+        remainingBalance: 0,
       };
     }
 
-    const basePrice = selectedPricing.basePrice || selectedPricing.netRate;
+    // Use netRate if available (GST inclusive), otherwise use basePrice
+    const basePrice = selectedPricing.netRate || selectedPricing.basePrice || 0;
     const nights = numberOfNights;
-    const rooms = 1;
+    const rooms = roomCount;
     const baseTotal = basePrice * nights * rooms;
 
-    // Calculate extra charges
-    const maxAdults = room?.maxAdults || 2;
-    const extraAdultsCount = Math.max(0, tempAdults - maxAdults);
+    // Calculate extra charges per room
+    const maxAdultsPerRoom = room?.maxAdults || 2;
+    const totalOccupencyPerRoom = room?.totalOccupency || maxAdultsPerRoom;
+    
+    // Calculate extra adults and children across all rooms
+    const totalCapacity = rooms * totalOccupencyPerRoom;
+    const totalGuests = tempAdults + tempChildren;
+    const extraGuests = Math.max(0, totalGuests - totalCapacity);
+    
+    // Distribute extra guests (prioritize adults)
+    const extraAdultsCount = Math.max(0, Math.min(extraGuests, tempAdults - (rooms * maxAdultsPerRoom)));
+    const extraChildrenCount = Math.max(0, extraGuests - extraAdultsCount);
+    
     const extraAdultRate = selectedPricing.extraAdultRateWithoutExtraMatress || 0;
     const extraAdultsTotal = extraAdultsCount * extraAdultRate * nights;
 
-    const extraChildrenCount = tempChildren;
     const extraChildRate = selectedPricing.paidChildRatewithoutExtraMatress || 0;
     const extraChildrenTotal = extraChildrenCount * extraChildRate * nights;
 
     const subtotal = baseTotal + extraAdultsTotal + extraChildrenTotal;
     
-    // Calculate taxes (assuming 12% GST)
-    const taxRate = 0.12;
-    const taxes = subtotal * taxRate;
-    
-    // Service fee (2% of subtotal)
-    const serviceFee = subtotal * 0.02;
+    // Calculate GST from hotel data, not room rate
+    const hasGST = selectedHotel?.hasGST || false;
+    const gstPercentage = selectedHotel?.gstPercentage || 0;
+    const taxes = hasGST ? (subtotal * gstPercentage) / 100 : 0;
     
     const discount = promoDiscount;
-    const total = subtotal + taxes + serviceFee - discount;
+    const total = subtotal + taxes - discount;
+
+    // Payment split-up: 30% advance
+    const advancePercentage = 0.30; // 30%
+    const amountToPayNow = total * advancePercentage;
+    const totalToPayNow = amountToPayNow;
+    const remainingBalance = total - amountToPayNow;
 
     return {
       baseRoomPrice: basePrice,
@@ -254,10 +351,14 @@ export default function ReservationReview() {
       subtotal,
       taxes,
       discount,
-      serviceFee,
       total: Math.max(0, total),
+      hasGST,
+      gstPercentage,
+      amountToPayNow,
+      totalToPayNow,
+      remainingBalance,
     };
-  }, [selectedPricing, numberOfNights, tempAdults, tempChildren, promoDiscount, room]);
+  }, [selectedPricing, numberOfNights, tempAdults, tempChildren, promoDiscount, room, roomCount, selectedHotel]);
 
   // Phone number formatting
   const formatPhoneNumber = (value: string) => {
@@ -289,9 +390,7 @@ export default function ReservationReview() {
       guestInfo.email.trim() !== '' &&
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestInfo.email) &&
       guestInfo.phone.trim() !== '' &&
-      guestInfo.phone.length >= 10 &&
-      guestInfo.idType !== '' &&
-      guestInfo.idNumber.trim() !== ''
+      guestInfo.phone.length >= 10
     );
   }, [guestInfo]);
 
@@ -315,13 +414,7 @@ export default function ReservationReview() {
       newErrors.phone = 'Please enter a valid 10-digit phone number';
     }
 
-    if (!guestInfo.idType) {
-      newErrors.idType = 'ID type is required';
-    }
-
-    if (!guestInfo.idNumber.trim()) {
-      newErrors.idNumber = 'ID number is required';
-    }
+    // ID Type and ID Number are optional fields - no validation required
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -430,9 +523,17 @@ export default function ReservationReview() {
     setShowDateSheet(false);
   };
 
-  // Save guest count from sheet
+  // Save guest count from dialog and auto-adjust room count
   const saveGuestCount = () => {
     setGuests(tempAdults + tempChildren);
+    
+    // Automatically calculate and update room count based on occupancy
+    if (room?.totalOccupency) {
+      const totalGuests = tempAdults + tempChildren;
+      const requiredRooms = Math.max(1, Math.ceil(totalGuests / room.totalOccupency));
+      setRoomCount(requiredRooms);
+    }
+    
     setShowGuestSheet(false);
   };
 
@@ -444,14 +545,97 @@ export default function ReservationReview() {
       return;
     }
 
+    if (!checkIn || !checkOut || !roomId || !selectedPricing) {
+      setErrors((prev) => ({ ...prev, submit: 'Please ensure all booking details are complete' }));
+      return;
+    }
+
+    const hotelId = hotelIdFromQuery || selectedHotel?._id;
+    if (!hotelId) {
+      setErrors((prev) => ({ ...prev, submit: 'Hotel information is missing' }));
+      return;
+    }
+
+    const userId = AuthService.getUserId();
+    if (!userId) {
+      setErrors((prev) => ({ ...prev, submit: 'Please login to continue with booking' }));
+      return;
+    }
+
     setIsSubmitting(true);
 
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      // Calculate extra adults and children
+      const maxAdultsPerRoom = room?.maxAdults || 2;
+      const totalOccupencyPerRoom = room?.totalOccupency || maxAdultsPerRoom;
+      const totalCapacity = roomCount * totalOccupencyPerRoom;
+      const totalGuests = tempAdults + tempChildren;
+      const extraGuests = Math.max(0, totalGuests - totalCapacity);
+      
+      // Distribute extra guests (prioritize adults)
+      const extraAdultsCount = Math.max(0, Math.min(extraGuests, tempAdults - (roomCount * maxAdultsPerRoom)));
+      const extraChildrenCount = Math.max(0, extraGuests - extraAdultsCount);
+
+      // Build booking request payload
+      const bookingRequest: BookingRequest = {
+        hotelId: hotelId,
+        userId: userId,
+        guestDetails: {
+          guestName: guestInfo.fullName,
+          email: guestInfo.email,
+          phone: `${guestInfo.phoneCountryCode}${guestInfo.phone}`,
+          address: selectedHotel?.address || '',
+          city: selectedHotel?.townName || selectedHotel?.locationName || '',
+          state: selectedHotel?.state || room?.state || '',
+          country: selectedHotel?.country || room?.country || 'India',
+          pincode: '',
+        },
+        roomRequirements: [
+          {
+            roomTypeId: roomId,
+            numberOfRooms: roomCount,
+            checkInDate: checkIn,
+            checkOutDate: checkOut,
+            totalGuests: tempAdults + tempChildren,
+            adultGuests: tempAdults,
+            childGuests: tempChildren,
+            packageSelected: selectedPricing._id || '',
+            amountPerNight: pricingBreakdown.baseRoomPrice,
+            totalAmount: pricingBreakdown.baseRoomPrice * numberOfNights * roomCount,
+          },
+        ],
+        totalAmount: pricingBreakdown.total,
+        advanceAmount: pricingBreakdown.totalToPayNow,
+        beddingType: 'bed', // Valid values: bed, without_bed, mattress, without_mattress, cot, without_cot
+        extraAdults: extraAdultsCount,
+        extraChild: extraChildrenCount,
+        extraAdultAmount: pricingBreakdown.extraAdults,
+        extraChildAmount: pricingBreakdown.extraChildren,
+        mealPlan: selectedPricing.breakfastIncluded ? 'Breakfast Included' : 'Room Only',
+        remarks: guestInfo.specialRequests || '',
+      };
+
+      // Call booking API
+      const result = await bookingsService.createBooking(bookingRequest);
+
+      if (result.status && result.data?.paymentUrl) {
+        // Redirect to payment URL
+        window.location.href = result.data.paymentUrl;
+      } else {
+        setErrors((prev) => ({ 
+          ...prev, 
+          submit: result.msg || 'Failed to create booking. Please try again.' 
+        }));
+        setIsSubmitting(false);
+      }
+    } catch (error: any) {
+      console.error('Error creating booking:', error);
+      setErrors((prev) => ({ 
+        ...prev, 
+        submit: error?.response?.data?.msg || 'An error occurred. Please try again.' 
+      }));
       setIsSubmitting(false);
-      // Navigate to payment page (to be implemented)
-      navigate('/payment');
-    }, 2000);
+    }
   };
 
   // WhatsApp message
@@ -569,6 +753,31 @@ export default function ReservationReview() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    {/* Booking For Selection */}
+                    <div className="pb-4 border-b">
+                      <Label className="text-base font-medium mb-3 block">
+                        Who is this booking for?
+                      </Label>
+                      <RadioGroup
+                        value={bookingFor}
+                        onValueChange={(value) => setBookingFor(value as 'myself' | 'someone-else')}
+                        className="flex gap-6"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="myself" id="myself" />
+                          <Label htmlFor="myself" className="font-normal cursor-pointer">
+                            Myself
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="someone-else" id="someone-else" />
+                          <Label htmlFor="someone-else" className="font-normal cursor-pointer">
+                            Someone Else
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div className="sm:col-span-2">
                         <Label htmlFor="fullName">
@@ -655,13 +864,13 @@ export default function ReservationReview() {
 
                       <div>
                         <Label htmlFor="idType">
-                          ID Type <span className="text-destructive">*</span>
+                          ID Type <span className="text-muted-foreground text-xs">(Optional)</span>
                         </Label>
                         <Select
                           value={guestInfo.idType}
                           onValueChange={(value) => handleInputChange('idType', value)}
                         >
-                          <SelectTrigger className={cn(errors.idType && 'border-destructive')}>
+                          <SelectTrigger>
                             <SelectValue placeholder="Select ID type" />
                           </SelectTrigger>
                           <SelectContent>
@@ -671,31 +880,18 @@ export default function ReservationReview() {
                             <SelectItem value="other">Other</SelectItem>
                           </SelectContent>
                         </Select>
-                        {errors.idType && (
-                          <p className="text-sm text-destructive mt-1 flex items-center gap-1">
-                            <AlertCircle size={14} />
-                            {errors.idType}
-                          </p>
-                        )}
                       </div>
 
                       <div>
                         <Label htmlFor="idNumber">
-                          ID Number <span className="text-destructive">*</span>
+                          ID Number <span className="text-muted-foreground text-xs">(Optional)</span>
                         </Label>
                         <Input
                           id="idNumber"
                           value={guestInfo.idNumber}
                           onChange={(e) => handleInputChange('idNumber', e.target.value)}
                           placeholder="Enter ID number"
-                          className={cn(errors.idNumber && 'border-destructive')}
                         />
-                        {errors.idNumber && (
-                          <p className="text-sm text-destructive mt-1 flex items-center gap-1">
-                            <AlertCircle size={14} />
-                            {errors.idNumber}
-                          </p>
-                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -1051,20 +1247,20 @@ export default function ReservationReview() {
                             {tempChildren > 0 && `, ${tempChildren} ${tempChildren === 1 ? 'Child' : 'Children'}`}
                           </p>
                         </div>
-                        <Sheet open={showGuestSheet} onOpenChange={setShowGuestSheet}>
-                          <SheetTrigger asChild>
+                        <Dialog open={showGuestSheet} onOpenChange={setShowGuestSheet}>
+                          <DialogTrigger asChild>
                             <Button variant="ghost" size="icon" className="shrink-0">
                               <Edit2 size={16} />
                             </Button>
-                          </SheetTrigger>
-                          <SheetContent side="bottom" className="h-[400px]">
-                            <SheetHeader>
-                              <SheetTitle>Modify Guest Count</SheetTitle>
-                              <SheetDescription>
-                                Update the number of adults and children
-                              </SheetDescription>
-                            </SheetHeader>
-                            <div className="space-y-4 mt-6">
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Modify Guest Count</DialogTitle>
+                              <DialogDescription>
+                                Update the number of adults and children. Room count will be automatically adjusted based on occupancy.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-4 mt-4">
                               <div>
                                 <Label>Adults</Label>
                                 <Input
@@ -1072,10 +1268,9 @@ export default function ReservationReview() {
                                   value={tempAdults}
                                   onChange={(e) => setTempAdults(parseInt(e.target.value) || 1)}
                                   min={1}
-                                  max={room?.maxAdults || 4}
                                 />
                                 <p className="text-xs text-muted-foreground mt-1">
-                                  Max {room?.maxAdults || 4} adults
+                                  Add as many adults as needed. Room count will adjust automatically.
                                 </p>
                               </div>
                               <div>
@@ -1085,18 +1280,72 @@ export default function ReservationReview() {
                                   value={tempChildren}
                                   onChange={(e) => setTempChildren(parseInt(e.target.value) || 0)}
                                   min={0}
-                                  max={room?.maxChilds || 2}
                                 />
                                 <p className="text-xs text-muted-foreground mt-1">
-                                  Max {room?.maxChilds || 2} children
+                                  Add as many children as needed. Room count will adjust automatically.
                                 </p>
                               </div>
-                              <Button onClick={saveGuestCount} className="w-full">
-                                Save Changes
-                              </Button>
+                              {room?.totalOccupency && (
+                                <div className="p-3 bg-muted/50 rounded-lg">
+                                  <p className="text-xs text-muted-foreground mb-1">
+                                    Current selection: {tempAdults + tempChildren} {tempAdults + tempChildren === 1 ? 'guest' : 'guests'}
+                                  </p>
+                                  <p className="text-xs font-medium text-foreground">
+                                    Required rooms: {Math.max(1, Math.ceil((tempAdults + tempChildren) / room.totalOccupency))} {Math.max(1, Math.ceil((tempAdults + tempChildren) / room.totalOccupency)) === 1 ? 'room' : 'rooms'} (Occupancy: {room.totalOccupency} per room)
+                                  </p>
+                                </div>
+                              )}
+                              <div className="flex gap-2 pt-2">
+                                <Button 
+                                  variant="outline" 
+                                  onClick={() => setShowGuestSheet(false)} 
+                                  className="flex-1"
+                                >
+                                  Cancel
+                                </Button>
+                                <Button onClick={saveGuestCount} className="flex-1">
+                                  Save Changes
+                                </Button>
+                              </div>
                             </div>
-                          </SheetContent>
-                        </Sheet>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
+
+                      {/* Rooms - Editable with +/- buttons */}
+                      <div className="flex items-center justify-between pt-3 border-t">
+                        <div className="flex-1">
+                          <p className="text-xs text-muted-foreground mb-1">Rooms</p>
+                          <p className="text-sm font-medium text-foreground">
+                            {roomCount} {roomCount === 1 ? 'Room' : 'Rooms'}
+                            {roomCount < calculateRequiredRoomCount && (
+                              <span className="text-xs text-destructive ml-2">
+                                (Min {calculateRequiredRoomCount} required)
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setRoomCount(Math.max(1, roomCount - 1))}
+                            disabled={roomCount <= 1 || roomCount <= calculateRequiredRoomCount}
+                          >
+                            <Minus size={14} />
+                          </Button>
+                          <span className="text-sm font-medium w-8 text-center">{roomCount}</span>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setRoomCount(roomCount + 1)}
+                            disabled={room?.totalRooms ? roomCount >= room.totalRooms : false}
+                          >
+                            <Plus size={14} />
+                          </Button>
+                        </div>
                       </div>
                     </div>
 
@@ -1130,7 +1379,7 @@ export default function ReservationReview() {
                   <CardContent>
                     <div className="space-y-4">
                         {/* Promo Code */}
-                        <div className="space-y-2">
+                        {/* <div className="space-y-2">
                           <Label>Promo Code</Label>
                           <div className="flex gap-2">
                             <Input
@@ -1157,10 +1406,10 @@ export default function ReservationReview() {
                           {errors.promoCode && (
                             <p className="text-sm text-destructive">{errors.promoCode}</p>
                           )}
-                        </div>
+                        </div> */}
 
                         {/* Price Breakdown Accordion */}
-                        <Accordion type="single" collapsible className="w-full">
+                        <Accordion type="single" collapsible className="w-full" defaultValue="breakdown">
                           <AccordionItem value="breakdown">
                             <AccordionTrigger className="text-sm">
                               View Price Breakdown
@@ -1169,11 +1418,11 @@ export default function ReservationReview() {
                               <div className="space-y-2 pt-2">
                                 <div className="flex justify-between text-sm">
                                   <span className="text-muted-foreground">
-                                    Base Rate × {pricingBreakdown.nights} nights
+                                    Base Rate × {pricingBreakdown.rooms} {pricingBreakdown.rooms === 1 ? 'room' : 'rooms'} × {pricingBreakdown.nights} nights
                                   </span>
                                   <span className="text-foreground">
                                     {hotelConfig.currencySymbol}
-                                    {(pricingBreakdown.baseRoomPrice * pricingBreakdown.nights).toLocaleString()}
+                                    {(pricingBreakdown.baseRoomPrice * pricingBreakdown.nights * pricingBreakdown.rooms).toLocaleString()}
                                   </span>
                                 </div>
                                 {pricingBreakdown.extraAdults > 0 && (
@@ -1201,23 +1450,18 @@ export default function ReservationReview() {
                                     {pricingBreakdown.subtotal.toLocaleString()}
                                   </span>
                                 </div>
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-muted-foreground flex items-center gap-1">
-                                    Taxes (12% GST)
-                                    <Info size={12} className="cursor-help" />
-                                  </span>
-                                  <span className="text-foreground">
-                                    {hotelConfig.currencySymbol}
-                                    {pricingBreakdown.taxes.toLocaleString()}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-muted-foreground">Service Fee</span>
-                                  <span className="text-foreground">
-                                    {hotelConfig.currencySymbol}
-                                    {pricingBreakdown.serviceFee.toLocaleString()}
-                                  </span>
-                                </div>
+                                {pricingBreakdown.hasGST && pricingBreakdown.taxes > 0 && (
+                                  <div className="flex justify-between text-sm">
+                                    <span className="text-muted-foreground flex items-center gap-1">
+                                      Taxes (GST {pricingBreakdown.gstPercentage}%)
+                                      <Info size={12} className="cursor-help" />
+                                    </span>
+                                    <span className="text-foreground">
+                                      {hotelConfig.currencySymbol}
+                                      {pricingBreakdown.taxes.toLocaleString()}
+                                    </span>
+                                  </div>
+                                )}
                                 {pricingBreakdown.discount > 0 && (
                                   <div className="flex justify-between text-sm text-hotel-secondary">
                                     <span>Discount</span>
@@ -1232,17 +1476,41 @@ export default function ReservationReview() {
                           </AccordionItem>
                         </Accordion>
 
-                        {/* Total */}
-                        <div className="pt-4 border-t">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-lg font-semibold text-foreground">Total Payable</span>
-                            <span className="text-2xl font-bold text-primary">
+                        {/* Payment Split-up */}
+                        <div className="pt-4 border-t space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-lg font-semibold text-foreground">Total Amount</span>
+                            <span className="text-lg font-semibold text-foreground">
                               {hotelConfig.currencySymbol}
                               {pricingBreakdown.total.toLocaleString()}
                             </span>
                           </div>
+                          
+                          <div className="bg-muted/50 p-3 rounded-lg space-y-2">
+                            <p className="text-xs font-medium text-foreground mb-2">Payment Split-up</p>
+                            
+                            <div className="flex justify-between text-sm pt-2 border-t">
+                              <span className="font-medium text-foreground">Amount to Pay Now (30%)</span>
+                              <span className="font-medium text-primary">
+                                {hotelConfig.currencySymbol}
+                                {pricingBreakdown.totalToPayNow.toLocaleString()}
+                              </span>
+                            </div>
+                            
+                            <div className="flex justify-between text-sm pt-1">
+                              <span className="text-muted-foreground">Remaining Balance (70%)</span>
+                              <span className="text-muted-foreground">
+                                {hotelConfig.currencySymbol}
+                                {pricingBreakdown.remainingBalance.toLocaleString()}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-2">
+                              Remaining balance to be paid at the hotel
+                            </p>
+                          </div>
+                          
                           {pricingBreakdown.discount > 0 && (
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-xs text-hotel-secondary">
                               You saved {hotelConfig.currencySymbol}
                               {pricingBreakdown.discount.toLocaleString()}!
                             </p>
@@ -1254,6 +1522,14 @@ export default function ReservationReview() {
 
                 {/* Action Buttons */}
                 <div className="space-y-3">
+                  {errors.submit && (
+                    <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                      <p className="text-sm text-destructive flex items-center gap-2">
+                        <AlertCircle size={16} />
+                        {errors.submit}
+                      </p>
+                    </div>
+                  )}
                   <Button
                     variant="booking"
                     size="xl"
@@ -1337,11 +1613,18 @@ export default function ReservationReview() {
         <div className="container-hotel">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <p className="text-xs text-muted-foreground">Total Payable</p>
-              <p className="text-xl font-bold text-primary">
-                {hotelConfig.currencySymbol}
-                {pricingBreakdown.total.toLocaleString()}
-              </p>
+              <div>
+                <p className="text-xs text-muted-foreground">Total Amount</p>
+                <p className="text-lg font-semibold text-foreground">
+                  {hotelConfig.currencySymbol}
+                  {pricingBreakdown.total.toLocaleString()}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">Pay Now</p>
+                <p className="text-xl font-bold text-primary">
+                  {hotelConfig.currencySymbol}
+                  {pricingBreakdown.totalToPayNow.toLocaleString()}
+                </p>
+              </div>
             </div>
             <Button
               variant="booking"
