@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Calendar, Hotel, Search, Plus } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
@@ -12,8 +12,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useHotels } from '@/contexts/HotelContext';
-import { mockBookings } from '@/data/mockBookings';
-import { Booking, BookingStatus } from '@/types/booking';
+import { BookingStatus } from '@/types/booking';
+import { Booking, GetBookingsListPayload, DateFilter } from '@/models/bookings.models';
+import bookingsService from '@/services/bookings.service';
+import { AuthService } from '@/services/auth.service';
+import { environment } from '../../environment';
 import { cn } from '@/lib/utils';
 
 const statusTabs: { value: BookingStatus | 'all'; label: string; count?: number }[] = [
@@ -76,11 +79,15 @@ function BookingsSkeleton() {
 }
 
 export default function MyBookings() {
-  const { selectedHotel: hotel } = useHotels();
+  const { selectedHotel: hotel, hotels } = useHotels();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [error, setError] = useState<Error | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<FilterState>({});
+  const isFetchingRef = useRef(false);
+  const mountedRef = useRef(true);
   
   const activeTab = (searchParams.get('status') as BookingStatus | 'all') || 'all';
 
@@ -88,57 +95,250 @@ export default function MyBookings() {
     setSearchParams({ status: tab });
   };
 
-  // Filter bookings based on tab, search, and filters
-  const filteredBookings = useMemo(() => {
-    let bookings = [...mockBookings];
+  // Memoize stable values to prevent unnecessary re-renders
+  const hotelId = useMemo(() => hotel?._id || '', [hotel?._id]);
+  const hotelsLength = useMemo(() => hotels?.length || 0, [hotels?.length]);
+  const dateFromTimestamp = useMemo(() => filters.dateFrom ? filters.dateFrom.getTime() : 1, [filters.dateFrom]);
+  const dateToTimestamp = useMemo(() => filters.dateTo ? filters.dateTo.getTime() : Date.now() + (365 * 24 * 60 * 60 * 1000), [filters.dateTo]);
 
-    // Filter by status tab
-    if (activeTab !== 'all') {
-      bookings = bookings.filter(b => b.status === activeTab);
+  // Fetch bookings from API
+  useEffect(() => {
+    // Skip if already fetching
+    if (isFetchingRef.current) {
+      return;
     }
+
+    const fetchBookings = async () => {
+      // Mark as fetching
+      isFetchingRef.current = true;
+
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const userId = AuthService.getUserId();
+        if (!userId) {
+          setError(new Error('User not logged in'));
+          setIsLoading(false);
+          isFetchingRef.current = false;
+          return;
+        }
+
+        if (!hotelId) {
+          setError(new Error('No hotel selected'));
+          setIsLoading(false);
+          isFetchingRef.current = false;
+          return;
+        }
+
+        // Build date filter
+        const dateFilter: DateFilter = {
+          from: dateFromTimestamp,
+          to: dateToTimestamp,
+        };
+
+        // Fetch bookings based on active tab
+        const allBookings: Booking[] = [];
+        
+        if (activeTab === 'all') {
+          // For 'all', don't pass bookingFor field
+          try {
+            const payload: GetBookingsListPayload = {
+              userId,
+              dateFilter,
+              hotelId,
+            };
+            const response = await bookingsService.getBookingsList(payload);
+            if (response.status && response.data) {
+              allBookings.push(...response.data);
+            }
+          } catch (err) {
+            console.error('Error fetching all bookings:', err);
+          }
+        } else if (activeTab === 'cancelled') {
+          // For cancelled, fetch all and filter client-side
+          try {
+            const payload: GetBookingsListPayload = {
+              userId,
+              dateFilter,
+              hotelId,
+            };
+            const response = await bookingsService.getBookingsList(payload);
+            if (response.status && response.data) {
+              allBookings.push(...response.data);
+            }
+          } catch (err) {
+            console.error('Error fetching bookings for cancelled filter:', err);
+          }
+        } else {
+          // For specific status, pass bookingFor
+          let bookingFor: ("UPCOMING" | "COMPLETED" | "CURRENT") | null = null;
+          if (activeTab === 'upcoming') {
+            bookingFor = 'UPCOMING';
+          } else if (activeTab === 'current') {
+            bookingFor = 'CURRENT';
+          } else if (activeTab === 'completed') {
+            bookingFor = 'COMPLETED';
+          }
+
+          if (bookingFor) {
+            try {
+              const payload: GetBookingsListPayload = {
+                userId,
+                bookingFor: [bookingFor] as ["UPCOMING" | "COMPLETED" | "CURRENT"],
+                dateFilter,
+                hotelId,
+              };
+              const response = await bookingsService.getBookingsList(payload);
+              if (response.status && response.data) {
+                allBookings.push(...response.data);
+              }
+            } catch (err) {
+              console.error(`Error fetching ${bookingFor} bookings:`, err);
+            }
+          }
+        }
+
+        // Filter by status if needed (for cancelled or specific status)
+        let filtered = allBookings;
+        if (activeTab === 'cancelled') {
+          filtered = allBookings.filter(b => 
+            b.bookingStatus === 'CANCELLED' || b.reservationStatus === 'CANCELLED'
+          );
+        } else if (activeTab === 'completed') {
+          filtered = allBookings.filter(b => 
+            b.bookingStatus === 'COMPLETED' || b.reservationStatus === 'COMPLETED' ||
+            b.bookingStatus === 'CHECKED_OUT' || b.reservationStatus === 'CHECKED_OUT'
+          );
+        } else if (activeTab === 'current') {
+          filtered = allBookings.filter(b => 
+            b.bookingStatus === 'CHECKED_IN' || b.reservationStatus === 'CHECKED_IN'
+          );
+        } else if (activeTab === 'upcoming') {
+          filtered = allBookings.filter(b => {
+            const status = b.bookingStatus || b.reservationStatus;
+            return status === 'PENDING' || status === 'CONFIRMED';
+          });
+        }
+        
+        setBookings(filtered);
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error('Failed to fetch bookings');
+        setError(error);
+        console.error('Error fetching bookings:', err);
+        setBookings([]);
+      } finally {
+        setIsLoading(false);
+        isFetchingRef.current = false;
+      }
+    };
+
+    if (hotelId && hotelsLength > 0) {
+      fetchBookings();
+    } else {
+      setIsLoading(false);
+      isFetchingRef.current = false;
+    }
+
+    // Cleanup function - only reset fetching flag, don't set mounted to false
+    return () => {
+      isFetchingRef.current = false;
+    };
+  }, [activeTab, hotelId, hotelsLength, dateFromTimestamp, dateToTimestamp, hotels]);
+
+  // Reset mounted ref when component mounts
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // Helper function to get booking status for filtering
+  const getBookingStatus = (booking: Booking): BookingStatus | 'cancelled' => {
+    if (booking.bookingStatus === 'CANCELLED' || booking.reservationStatus === 'CANCELLED') {
+      return 'cancelled';
+    }
+    if (booking.bookingStatus === 'COMPLETED' || booking.reservationStatus === 'COMPLETED' ||
+        booking.bookingStatus === 'CHECKED_OUT' || booking.reservationStatus === 'CHECKED_OUT') {
+      return 'completed';
+    }
+    if (booking.bookingStatus === 'CHECKED_IN' || booking.reservationStatus === 'CHECKED_IN') {
+      return 'current';
+    }
+    return 'upcoming';
+  };
+
+  // Filter bookings based on search and filters (client-side filtering)
+  const filteredBookings = useMemo(() => {
+    let filtered = [...bookings];
 
     // Filter by search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      bookings = bookings.filter(b => 
-        b.hotelName.toLowerCase().includes(query) ||
-        b.referenceNumber.toLowerCase().includes(query) ||
-        b.roomType.toLowerCase().includes(query) ||
-        b.location.toLowerCase().includes(query)
-      );
+      filtered = filtered.filter(b => {
+        const hotelName = b.hotelId?.hotelName || '';
+        const referenceNumber = `AR-${b.reservationNumber}`;
+        const roomType = b.bookedRooms?.[0]?.roomTypeName || '';
+        const location = b.hotelId?.locationName || b.hotelId?.townName || b.hotelId?.address || '';
+        
+        return hotelName.toLowerCase().includes(query) ||
+               referenceNumber.toLowerCase().includes(query) ||
+               roomType.toLowerCase().includes(query) ||
+               location.toLowerCase().includes(query);
+      });
     }
 
     // Apply filters
     if (filters.hotel) {
-      bookings = bookings.filter(b => b.hotelName === filters.hotel);
+      filtered = filtered.filter(b => b.hotelId?.hotelName === filters.hotel);
     }
     if (filters.location) {
-      bookings = bookings.filter(b => b.location === filters.location);
+      filtered = filtered.filter(b => {
+        const location = b.hotelId?.locationName || b.hotelId?.townName || b.hotelId?.address || '';
+        return location === filters.location;
+      });
     }
     if (filters.priceMin) {
-      bookings = bookings.filter(b => b.pricing.total >= filters.priceMin!);
+      filtered = filtered.filter(b => b.totalAmount >= filters.priceMin!);
     }
     if (filters.priceMax) {
-      bookings = bookings.filter(b => b.pricing.total <= filters.priceMax!);
+      filtered = filtered.filter(b => b.totalAmount <= filters.priceMax!);
     }
     if (filters.dateFrom) {
-      bookings = bookings.filter(b => new Date(b.checkIn) >= filters.dateFrom!);
+      filtered = filtered.filter(b => {
+        const checkIn = new Date(b.checkInDate || b.reservationCheckInDate);
+        return checkIn >= filters.dateFrom!;
+      });
     }
     if (filters.dateTo) {
-      bookings = bookings.filter(b => new Date(b.checkOut) <= filters.dateTo!);
+      filtered = filtered.filter(b => {
+        const checkOut = new Date(b.checkOutDate || b.reservationCheckOutDate);
+        return checkOut <= filters.dateTo!;
+      });
     }
 
-    return bookings;
-  }, [activeTab, searchQuery, filters]);
+    return filtered;
+  }, [bookings, searchQuery, filters]);
 
   // Get counts for each tab
   const tabCounts = useMemo(() => ({
-    all: mockBookings.length,
-    upcoming: mockBookings.filter(b => b.status === 'upcoming').length,
-    current: mockBookings.filter(b => b.status === 'current').length,
-    completed: mockBookings.filter(b => b.status === 'completed').length,
-    cancelled: mockBookings.filter(b => b.status === 'cancelled').length,
-  }), []);
+    all: bookings.length,
+    upcoming: bookings.filter(b => {
+      const status = b.bookingStatus || b.reservationStatus;
+      return status === 'PENDING' || status === 'CONFIRMED';
+    }).length,
+    current: bookings.filter(b => 
+      b.bookingStatus === 'CHECKED_IN' || b.reservationStatus === 'CHECKED_IN'
+    ).length,
+    completed: bookings.filter(b => 
+      b.bookingStatus === 'COMPLETED' || b.reservationStatus === 'COMPLETED' ||
+      b.bookingStatus === 'CHECKED_OUT' || b.reservationStatus === 'CHECKED_OUT'
+    ).length,
+    cancelled: bookings.filter(b => 
+      b.bookingStatus === 'CANCELLED' || b.reservationStatus === 'CANCELLED'
+    ).length,
+  }), [bookings]);
 
   const handleCancel = (id: string) => {
     console.log('Cancel booking:', id);
@@ -208,7 +408,22 @@ export default function MyBookings() {
           {/* Content */}
           {statusTabs.map((tab) => (
             <TabsContent key={tab.value} value={tab.value} className="mt-0">
-              {isLoading ? (
+              {error ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
+                    <Calendar className="w-10 h-10 text-destructive" />
+                  </div>
+                  <h3 className="font-display font-semibold text-xl text-foreground mb-2">
+                    Error Loading Bookings
+                  </h3>
+                  <p className="text-muted-foreground mb-6 max-w-sm">
+                    {error.message}
+                  </p>
+                  <Button onClick={() => window.location.reload()}>
+                    Retry
+                  </Button>
+                </div>
+              ) : isLoading ? (
                 <BookingsSkeleton />
               ) : filteredBookings.length === 0 ? (
                 <EmptyState status={tab.value} />
@@ -216,7 +431,7 @@ export default function MyBookings() {
                 <div className="space-y-4">
                   {filteredBookings.map((booking) => (
                     <BookingCard
-                      key={booking.id}
+                      key={booking._id}
                       booking={booking}
                       onCancel={handleCancel}
                       onModify={handleModify}

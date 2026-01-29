@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import {
@@ -30,8 +30,12 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { useHotels } from '@/contexts/HotelContext';
-import { mockBookings } from '@/data/mockBookings';
+import { Reservation } from '@/models/bookings.models';
+import { Hotel } from '@/models/home.models';
 import { BookingStatus, BookingReview } from '@/types/booking';
+import bookingsService from '@/services/bookings.service';
+import { homeService } from '@/services/home.service';
+import { environment } from '../../environment';
 import { cn } from '@/lib/utils';
 
 const statusConfig: Record<BookingStatus, { label: string; className: string }> = {
@@ -59,20 +63,186 @@ function LoadingSkeleton() {
   );
 }
 
+// Helper function to map API reservation status to frontend status
+function mapReservationStatus(
+  bookingStatus: string,
+  reservationStatus: string,
+  checkInDate: string,
+  checkOutDate: string
+): BookingStatus {
+  const bookingStatusUpper = bookingStatus?.toUpperCase();
+  const reservationStatusUpper = reservationStatus?.toUpperCase();
+  
+  if (bookingStatusUpper === 'CANCELLED' || reservationStatusUpper === 'CANCELLED') {
+    return 'cancelled';
+  }
+  if (bookingStatusUpper === 'COMPLETED' || reservationStatusUpper === 'COMPLETED' || 
+      bookingStatusUpper === 'CHECKED_OUT' || reservationStatusUpper === 'CHECKED_OUT') {
+    return 'completed';
+  }
+  if (bookingStatusUpper === 'CHECKED_IN' || reservationStatusUpper === 'CHECKED_IN') {
+    return 'current';
+  }
+  
+  // Determine based on dates
+  const checkIn = new Date(checkInDate);
+  const checkOut = new Date(checkOutDate);
+  const now = new Date();
+  
+  if (now >= checkIn && now < checkOut) {
+    return 'current';
+  } else if (now < checkIn) {
+    return 'upcoming';
+  } else {
+    return 'completed';
+  }
+}
+
 export default function BookingDetails() {
   const { bookingId } = useParams<{ bookingId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { selectedHotel: hotel } = useHotels();
+  const [reservation, setReservation] = useState<Reservation | null>(null);
+  const [hotelData, setHotelData] = useState<Hotel | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [localReview, setLocalReview] = useState<BookingReview | null>(null);
 
-  // Find booking from mock data
-  const booking = mockBookings.find(b => b.id === bookingId);
-  const status = booking ? statusConfig[booking.status] : null;
-  const canReview = booking?.status === 'completed' && !booking.review && !localReview;
+  // Fetch reservation and hotel details
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!bookingId) {
+        setError(new Error('Booking ID is required'));
+        setIsLoading(false);
+        return;
+      }
 
-  if (!booking) {
+      try {
+        setIsLoading(true);
+        setError(null);
+        
+        // Fetch reservation
+        const reservationResponse = await bookingsService.getBookingById(bookingId);
+        
+        if (reservationResponse.status && reservationResponse.data) {
+          setReservation(reservationResponse.data);
+          
+          // Fetch hotel details using hotelId from reservation
+          if (reservationResponse.data.hotelId) {
+            try {
+              const hotelResponse = await homeService.getHotelById(reservationResponse.data.hotelId);
+              if (hotelResponse.status && hotelResponse.data) {
+                setHotelData(hotelResponse.data);
+              }
+            } catch (hotelErr) {
+              console.error('Error fetching hotel details:', hotelErr);
+              // Continue even if hotel fetch fails
+            }
+          }
+        } else {
+          setError(new Error(reservationResponse.msg || 'Failed to fetch booking'));
+        }
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error('Failed to fetch booking');
+        setError(error);
+        console.error('Error fetching booking:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [bookingId]);
+
+  // Map reservation status
+  const mappedStatus = reservation ? mapReservationStatus(
+    reservation.bookingStatus || '',
+    reservation.reservationStatus || '',
+    reservation.reservationCheckInDate,
+    reservation.reservationCheckOutDate
+  ) : null;
+  
+  const status = mappedStatus ? statusConfig[mappedStatus] : null;
+  const canReview = mappedStatus === 'completed' && !localReview;
+
+  // Extract reservation data for easier access
+  const hotelName = hotelData?.hotelName || 'Unknown Hotel';
+  const location = hotelData?.locationName || hotelData?.townName || hotelData?.address || 'Unknown Location';
+  const hotelImage = hotelData?.coverImages || hotelData?.interiorImage?.[0] || '/placeholder.svg';
+  const hotelImageUrl = hotelImage.startsWith('http') ? hotelImage : `${environment.imageBaseUrl}${hotelImage}`;
+  
+  const bookedRoom = reservation?.bookedRooms?.[0];
+  const roomType = bookedRoom?.roomTypeName || 'Standard Room';
+  const referenceNumber = reservation ? `AR-${reservation.reservationNumber}` : '';
+  const checkInDate = reservation ? new Date(reservation.reservationCheckInDate) : null;
+  const checkOutDate = reservation ? new Date(reservation.reservationCheckOutDate) : null;
+  
+  const adultGuests = bookedRoom?.roomInfo?.adultGuest || 0;
+  const childGuests = bookedRoom?.roomInfo?.childGuest || 0;
+  const nights = reservation?.numberOfNights || bookedRoom?.roomInfo?.nights || 1;
+  
+  const guestDetails = reservation?.guestDetails;
+  const guestName = guestDetails?.guestName || '';
+  const guestFirstName = guestName.split(' ')[0] || '';
+  const guestLastName = guestName.split(' ').slice(1).join(' ') || '';
+  
+  // Create timeline from payment transactions
+  const timeline = [];
+  if (reservation?.paymentTransactions && reservation.paymentTransactions.length > 0) {
+    reservation.paymentTransactions.forEach((transaction, index) => {
+      if (transaction.paymentStatus?.toLowerCase() === 'completed' || 
+          transaction.paymentStatus === 'FULLY_SETTLED') {
+        timeline.push({
+          id: `payment-${index}`,
+          type: 'payment' as const,
+          title: 'Payment Completed',
+          description: `Payment of ₹${transaction.amount?.toLocaleString()} received`,
+          timestamp: new Date(),
+        });
+      }
+    });
+  }
+  
+  // Add check-in/check-out events
+  if (checkInDate && checkOutDate) {
+    const now = new Date();
+    if (now >= checkInDate) {
+      timeline.push({
+        id: 'checkin',
+        type: 'checkin' as const,
+        title: 'Checked In',
+        description: 'Guest checked in',
+        timestamp: checkInDate,
+      });
+    }
+    if (now >= checkOutDate) {
+      timeline.push({
+        id: 'checkout',
+        type: 'checkout' as const,
+        title: 'Checked Out',
+        description: 'Guest checked out',
+        timestamp: checkOutDate,
+      });
+    }
+  }
+  
+  const sortedTimeline = timeline.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header hotel={hotel} />
+        <main className="container-hotel pt-24 pb-16">
+          <LoadingSkeleton />
+        </main>
+        <Footer hotel={hotel} />
+      </div>
+    );
+  }
+
+  if (error || !reservation) {
     return (
       <div className="min-h-screen bg-background">
         <Header hotel={hotel} />
@@ -81,7 +251,7 @@ export default function BookingDetails() {
             <AlertTriangle className="w-16 h-16 text-muted-foreground mb-4" />
             <h2 className="text-2xl font-display font-semibold mb-2">Booking Not Found</h2>
             <p className="text-muted-foreground mb-6">
-              We couldn't find the booking you're looking for.
+              {error?.message || "We couldn't find the booking you're looking for."}
             </p>
             <Button asChild>
               <Link to="/bookings">View All Bookings</Link>
@@ -96,20 +266,28 @@ export default function BookingDetails() {
   const handleDownloadInvoice = () => {
     toast({
       title: 'Downloading Invoice',
-      description: `Invoice for ${booking.referenceNumber} will be downloaded shortly.`,
+      description: `Invoice for ${referenceNumber} will be downloaded shortly.`,
     });
   };
 
   const handleContactHotel = () => {
-    window.location.href = `tel:+919876543210`;
+    const phoneNumber = hotelData?.contactDetails?.phoneNumber?.[0] || hotelData?.whatsappNumber || '';
+    if (phoneNumber) {
+      window.location.href = `tel:${phoneNumber}`;
+    }
   };
 
   const handleWhatsAppSupport = () => {
-    window.open(`https://wa.me/919876543210?text=Hi, I need help with booking ${booking.referenceNumber}`, '_blank');
+    const whatsappNumber = hotelData?.whatsappNumber || '';
+    if (whatsappNumber) {
+      window.open(`https://wa.me/${whatsappNumber}?text=Hi, I need help with booking ${referenceNumber}`, '_blank');
+    }
   };
 
   const handleRebook = () => {
-    navigate(`/rooms/${booking.hotelId}`);
+    if (hotelData?._id) {
+      navigate(`/rooms/${hotelData._id}`);
+    }
   };
 
   const handleReviewSubmit = async (reviewData: ReviewFormData) => {
@@ -118,7 +296,7 @@ export default function BookingDetails() {
     
     const newReview: BookingReview = {
       id: `review-${Date.now()}`,
-      bookingId: booking.id,
+      bookingId: reservation?._id || '',
       overallRating: reviewData.overallRating,
       cleanlinessRating: reviewData.cleanlinessRating,
       serviceRating: reviewData.serviceRating,
@@ -154,8 +332,8 @@ export default function BookingDetails() {
         {/* Hero Section */}
         <div className="relative rounded-2xl overflow-hidden mb-8">
           <img
-            src={booking.hotelImage}
-            alt={booking.hotelName}
+            src={hotelImageUrl}
+            alt={hotelName}
             className="w-full h-48 sm:h-64 object-cover"
           />
           <div className="absolute inset-0 bg-gradient-overlay" />
@@ -164,11 +342,11 @@ export default function BookingDetails() {
               {status?.label}
             </Badge>
             <h1 className="font-display text-2xl sm:text-3xl font-bold mb-1">
-              {booking.hotelName}
+              {hotelName}
             </h1>
             <p className="flex items-center gap-1 text-white/80">
               <MapPin className="w-4 h-4" />
-              {booking.location}
+              {location}
             </p>
           </div>
         </div>
@@ -182,7 +360,7 @@ export default function BookingDetails() {
                 <CardTitle className="flex items-center justify-between">
                   <span>Booking Details</span>
                   <span className="text-sm font-mono text-muted-foreground">
-                    {booking.referenceNumber}
+                    {referenceNumber}
                   </span>
                 </CardTitle>
               </CardHeader>
@@ -190,24 +368,32 @@ export default function BookingDetails() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Check-in</p>
-                    <p className="font-medium">{format(booking.checkIn, 'EEE, dd MMM yyyy')}</p>
-                    <p className="text-xs text-muted-foreground">2:00 PM</p>
+                    {checkInDate && (
+                      <>
+                        <p className="font-medium">{format(checkInDate, 'EEE, dd MMM yyyy')}</p>
+                        <p className="text-xs text-muted-foreground">{hotelData?.checkInTime || '2:00 PM'}</p>
+                      </>
+                    )}
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Check-out</p>
-                    <p className="font-medium">{format(booking.checkOut, 'EEE, dd MMM yyyy')}</p>
-                    <p className="text-xs text-muted-foreground">11:00 AM</p>
+                    {checkOutDate && (
+                      <>
+                        <p className="font-medium">{format(checkOutDate, 'EEE, dd MMM yyyy')}</p>
+                        <p className="text-xs text-muted-foreground">{hotelData?.checkOutTime || '11:00 AM'}</p>
+                      </>
+                    )}
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Room Type</p>
-                    <p className="font-medium">{booking.roomType}</p>
-                    <p className="text-xs text-muted-foreground">{booking.pricing.nights} nights</p>
+                    <p className="font-medium">{roomType}</p>
+                    <p className="text-xs text-muted-foreground">{nights} nights</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Guests</p>
-                    <p className="font-medium">{booking.guests.adults} Adults</p>
-                    {booking.guests.children > 0 && (
-                      <p className="text-xs text-muted-foreground">{booking.guests.children} Children</p>
+                    <p className="font-medium">{adultGuests} Adults</p>
+                    {childGuests > 0 && (
+                      <p className="text-xs text-muted-foreground">{childGuests} Children</p>
                     )}
                   </div>
                 </div>
@@ -223,28 +409,18 @@ export default function BookingDetails() {
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <span className="text-muted-foreground">Name:</span>{' '}
-                      <span className="text-foreground">{booking.guestInfo.firstName} {booking.guestInfo.lastName}</span>
+                      <span className="text-foreground">{guestFirstName} {guestLastName}</span>
                     </div>
                     <div>
                       <span className="text-muted-foreground">Email:</span>{' '}
-                      <span className="text-foreground">{booking.guestInfo.email}</span>
+                      <span className="text-foreground">{guestDetails?.email || 'N/A'}</span>
                     </div>
                     <div>
                       <span className="text-muted-foreground">Phone:</span>{' '}
-                      <span className="text-foreground">{booking.guestInfo.phone}</span>
+                      <span className="text-foreground">{guestDetails?.phone || 'N/A'}</span>
                     </div>
                   </div>
                 </div>
-
-                {booking.specialRequests && (
-                  <>
-                    <Separator />
-                    <div>
-                      <h4 className="font-medium mb-2">Special Requests</h4>
-                      <p className="text-sm text-muted-foreground">{booking.specialRequests}</p>
-                    </div>
-                  </>
-                )}
               </CardContent>
             </Card>
 
@@ -257,12 +433,12 @@ export default function BookingDetails() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <BookingTimeline events={booking.timeline} />
+                <BookingTimeline events={sortedTimeline} />
               </CardContent>
             </Card>
 
             {/* Instructions */}
-            {(booking.checkInInstructions || booking.checkOutInstructions) && (
+            {(hotelData?.checkInTime || hotelData?.checkOutTime) && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -271,16 +447,20 @@ export default function BookingDetails() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {booking.checkInInstructions && (
+                  {hotelData?.checkInTime && (
                     <div>
                       <h4 className="font-medium mb-1">Check-in Instructions</h4>
-                      <p className="text-sm text-muted-foreground">{booking.checkInInstructions}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Check-in time is {hotelData.checkInTime}. Please present valid ID and booking confirmation.
+                      </p>
                     </div>
                   )}
-                  {booking.checkOutInstructions && (
+                  {hotelData?.checkOutTime && (
                     <div>
                       <h4 className="font-medium mb-1">Check-out Instructions</h4>
-                      <p className="text-sm text-muted-foreground">{booking.checkOutInstructions}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Check-out time is {hotelData.checkOutTime}. Late check-out available on request.
+                      </p>
                     </div>
                   )}
                 </CardContent>
@@ -288,18 +468,18 @@ export default function BookingDetails() {
             )}
 
             {/* Review Section */}
-            {booking.status === 'completed' && (
+            {mappedStatus === 'completed' && (
               <div>
                 {showReviewForm ? (
                   <ReviewForm
-                    bookingId={booking.id}
+                    bookingId={reservation?._id || ''}
                     onSubmit={handleReviewSubmit}
                     onCancel={() => setShowReviewForm(false)}
                   />
-                ) : localReview || booking.review ? (
+                ) : localReview ? (
                   <ReviewDisplay
-                    review={localReview || booking.review!}
-                    guestName={`${booking.guestInfo.firstName} ${booking.guestInfo.lastName}`}
+                    review={localReview}
+                    guestName={`${guestFirstName} ${guestLastName}`}
                   />
                 ) : (
                   <Card className="border-dashed">
@@ -332,33 +512,39 @@ export default function BookingDetails() {
               <CardContent className="space-y-3">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">
-                    Room Rate x {booking.pricing.nights} nights
+                    Room Rate x {nights} nights
                   </span>
-                  <span>₹{(booking.pricing.roomRate * booking.pricing.nights).toLocaleString()}</span>
+                  <span>₹{((bookedRoom?.roomInfo?.totalAmount || reservation?.totalAmount || 0) / nights * nights).toLocaleString()}</span>
+                </div>
+                {reservation?.taxAndGstSplitUp && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Taxes & GST</span>
+                    <span>₹{reservation.taxAndGstSplitUp.gstAmount.toLocaleString()}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Total Amount</span>
+                  <span>₹{(reservation?.totalAmount || 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Taxes & GST</span>
-                  <span>₹{booking.pricing.taxes.toLocaleString()}</span>
+                  <span className="text-muted-foreground">Paid Amount</span>
+                  <span>₹{(reservation?.paidAmount || 0).toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Service Fees</span>
-                  <span>₹{booking.pricing.fees.toLocaleString()}</span>
-                </div>
-                {booking.pricing.discount > 0 && (
-                  <div className="flex justify-between text-sm text-secondary">
-                    <span>Discount</span>
-                    <span>-₹{booking.pricing.discount.toLocaleString()}</span>
+                {(reservation?.dueAmount || 0) > 0 && (
+                  <div className="flex justify-between text-sm text-destructive">
+                    <span>Due Amount</span>
+                    <span>₹{(reservation?.dueAmount || 0).toLocaleString()}</span>
                   </div>
                 )}
                 <Separator />
                 <div className="flex justify-between font-semibold text-lg">
-                  <span>Total Paid</span>
-                  <span>₹{booking.pricing.total.toLocaleString()}</span>
+                  <span>Total Amount</span>
+                  <span>₹{(reservation?.totalAmount || 0).toLocaleString()}</span>
                 </div>
-                {booking.paymentStatus === 'refunded' && (
+                {(reservation?.paymentStatus === 'REFUNDED' || reservation?.paymentStatus === 'PARTIAL_REFUND') && (
                   <Badge variant="secondary" className="w-full justify-center mt-2">
                     <RefreshCw className="w-3 h-3 mr-1" />
-                    Refunded
+                    {reservation.paymentStatus === 'REFUNDED' ? 'Refunded' : 'Partially Refunded'}
                   </Badge>
                 )}
               </CardContent>
@@ -394,7 +580,7 @@ export default function BookingDetails() {
                   <MessageCircle className="w-4 h-4 mr-2" />
                   WhatsApp Support
                 </Button>
-                {booking.status === 'completed' && (
+                {mappedStatus === 'completed' && (
                   <Button 
                     variant="secondary" 
                     className="w-full justify-start"
@@ -417,7 +603,7 @@ export default function BookingDetails() {
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  {booking.cancellationPolicy}
+                  {hotelData?.cancellationPolicy || 'Please contact hotel for cancellation policy.'}
                 </p>
               </CardContent>
             </Card>
@@ -431,3 +617,5 @@ export default function BookingDetails() {
     </div>
   );
 }
+
+
