@@ -30,7 +30,7 @@ const App = () => (
           <CartProvider>
             <Toaster />
             <Sonner />
-            <BrowserRouter>
+            <BrowserRouter basename="/hotel-demo">
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/rooms" element={<Rooms />} />
