@@ -30,6 +30,40 @@ export const OTPInput: React.FC<OTPInputProps> = ({
     }
   };
 
+  const renderSlots = () => {
+    if (length === 4) {
+      return (
+        <>
+          <InputOTPGroup>
+            <InputOTPSlot index={0} className="w-12 h-14 text-xl font-semibold border-2 border-border" />
+            <InputOTPSlot index={1} className="w-12 h-14 text-xl font-semibold border-2 border-border" />
+          </InputOTPGroup>
+          <InputOTPSeparator />
+          <InputOTPGroup>
+            <InputOTPSlot index={2} className="w-12 h-14 text-xl font-semibold border-2 border-border" />
+            <InputOTPSlot index={3} className="w-12 h-14 text-xl font-semibold border-2 border-border" />
+          </InputOTPGroup>
+        </>
+      );
+    }
+    // Default 6-digit layout
+    return (
+      <>
+        <InputOTPGroup>
+          <InputOTPSlot index={0} className="w-12 h-14 text-xl font-semibold border-2 border-border" />
+          <InputOTPSlot index={1} className="w-12 h-14 text-xl font-semibold border-2 border-border" />
+          <InputOTPSlot index={2} className="w-12 h-14 text-xl font-semibold border-2 border-border" />
+        </InputOTPGroup>
+        <InputOTPSeparator />
+        <InputOTPGroup>
+          <InputOTPSlot index={3} className="w-12 h-14 text-xl font-semibold border-2 border-border" />
+          <InputOTPSlot index={4} className="w-12 h-14 text-xl font-semibold border-2 border-border" />
+          <InputOTPSlot index={5} className="w-12 h-14 text-xl font-semibold border-2 border-border" />
+        </InputOTPGroup>
+      </>
+    );
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex justify-center">
@@ -39,17 +73,7 @@ export const OTPInput: React.FC<OTPInputProps> = ({
           onChange={handleChange}
           disabled={disabled}
         >
-          <InputOTPGroup>
-            <InputOTPSlot index={0} className="w-12 h-14 text-xl font-semibold border-2 border-border" />
-            <InputOTPSlot index={1} className="w-12 h-14 text-xl font-semibold border-2 border-border" />
-            <InputOTPSlot index={2} className="w-12 h-14 text-xl font-semibold border-2 border-border" />
-          </InputOTPGroup>
-          <InputOTPSeparator />
-          <InputOTPGroup>
-            <InputOTPSlot index={3} className="w-12 h-14 text-xl font-semibold border-2 border-border" />
-            <InputOTPSlot index={4} className="w-12 h-14 text-xl font-semibold border-2 border-border" />
-            <InputOTPSlot index={5} className="w-12 h-14 text-xl font-semibold border-2 border-border" />
-          </InputOTPGroup>
+          {renderSlots()}
         </InputOTP>
       </div>
 

@@ -42,4 +42,9 @@ export class LoginPayload {
     updated_at: string
     __v: number
   }
+
+  export class VerifyEmailPayload {
+    email: string
+    otp: string
+  }
   

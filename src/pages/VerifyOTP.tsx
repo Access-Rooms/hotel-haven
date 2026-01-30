@@ -12,6 +12,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { authService } from "@/services/auth.service";
 
 type FormState = "idle" | "loading" | "success" | "error";
 type ResendState = "idle" | "cooldown" | "sending";
@@ -48,30 +49,32 @@ const VerifyOTP = () => {
     setFormState("loading");
     setError(null);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      const response = await authService.verifyEmail({
+        email: email,
+        otp: otpValue,
+      });
 
-    // Simulate wrong OTP for demo
-    if (otpValue === "000000") {
+      if (response.status) {
+        setFormState("success");
+        // Redirect after success
+        setTimeout(() => {
+          navigate("/");
+        }, 2000);
+      } else {
+        setFormState("error");
+        setAttempts((a) => a + 1);
+        setError(response.msg || "Invalid verification code. Please try again.");
+      }
+    } catch (error: any) {
       setFormState("error");
       setAttempts((a) => a + 1);
-      setError("Invalid verification code. Please try again.");
-      return;
+      const errorMessage =
+        error.response?.data?.msg ||
+        error.message ||
+        "Failed to verify code. Please try again.";
+      setError(errorMessage);
     }
-
-    // Simulate expired OTP
-    if (otpValue === "111111") {
-      setFormState("error");
-      setError("This code has expired. Please request a new one.");
-      return;
-    }
-
-    setFormState("success");
-
-    // Redirect after success
-    setTimeout(() => {
-      navigate("/");
-    }, 2000);
   };
 
   const handleResend = async () => {
@@ -94,7 +97,7 @@ const VerifyOTP = () => {
   return (
     <AuthLayout
       title="Verify your email"
-      subtitle={`Enter the 6-digit code sent to ${maskEmail(email)}`}
+      subtitle={`Enter the 4-digit code sent to ${maskEmail(email)}`}
     >
       <div className="space-y-6">
         {/* Email indicator */}
@@ -139,6 +142,7 @@ const VerifyOTP = () => {
             <OTPInput
               value={otp}
               onChange={setOtp}
+              length={4}
               error={formState === "error" ? undefined : undefined}
               disabled={formState === "loading"}
               onComplete={handleOtpComplete}
@@ -150,7 +154,7 @@ const VerifyOTP = () => {
               variant="hero"
               size="lg"
               className="w-full"
-              disabled={otp.length < 6 || formState === "loading"}
+              disabled={otp.length < 4 || formState === "loading"}
               onClick={() => handleVerify(otp)}
             >
               {formState === "loading" ? (
