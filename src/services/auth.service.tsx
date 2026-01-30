@@ -1,5 +1,5 @@
 import apiClient from "@/config/axios";
-import { LoginPayload, SignupPayload, User, VerifyEmailPayload } from "@/models/auth.models";
+import { LoginPayload, SignupPayload, User, VerifyEmailPayload, VerifyEmailResponse } from "@/models/auth.models";
 import { ApiResponse } from "@/models/common.models";
 import { environment } from "../../environment";
 
@@ -16,8 +16,8 @@ export class AuthService {
         return response.data;
     }
 
-    async verifyEmail(payload: VerifyEmailPayload): Promise<ApiResponse<any>> {
-        const response = await apiClient.post<ApiResponse<any>>(`${this.apiUrl}customer/verify/email`, payload);
+    async verifyEmail(payload: VerifyEmailPayload): Promise<VerifyEmailResponse> {
+        const response = await apiClient.post<VerifyEmailResponse>(`${this.apiUrl}customer/verify/email`, payload);
         return response.data;
     }
 

@@ -135,7 +135,13 @@ const Signup = () => {
     console.log(response);
     if (response.status == true) {
       setFormState("success");
-      navigate("/verify-otp", { state: { email: formData.email } });
+      navigate("/verify-otp", { 
+        state: { 
+          email: formData.email,
+          phoneNumber: formData.phone,
+          password: formData.password
+        } 
+      });
     } else {
       setFormState("error");
       setErrors({ general: response.msg });

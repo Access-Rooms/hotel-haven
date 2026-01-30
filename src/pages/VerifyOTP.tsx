@@ -21,6 +21,8 @@ const VerifyOTP = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const email = location.state?.email || "user@example.com";
+  const phoneNumber = location.state?.phoneNumber;
+  const password = location.state?.password;
 
   const [otp, setOtp] = React.useState("");
   const [formState, setFormState] = React.useState<FormState>("idle");
@@ -55,12 +57,44 @@ const VerifyOTP = () => {
         otp: otpValue,
       });
 
-      if (response.status) {
-        setFormState("success");
-        // Redirect after success
-        setTimeout(() => {
-          navigate("/");
-        }, 2000);
+      if (response.status && response.user) {
+        // Call login API after successful email verification
+        if (phoneNumber && password) {
+          try {
+            const loginResponse = await authService.login({
+              phoneNumber: phoneNumber,
+              password: password,
+            });
+            
+            if (loginResponse.status) {
+              localStorage.setItem("user", JSON.stringify(loginResponse.data));
+              setFormState("success");
+              // Redirect after success
+              setTimeout(() => {
+                navigate("/");
+              }, 2000);
+            } else {
+              setFormState("error");
+              setAttempts((a) => a + 1);
+              setError(loginResponse.msg || "Email verified but login failed. Please try logging in manually.");
+            }
+          } catch (loginError: any) {
+            setFormState("error");
+            setAttempts((a) => a + 1);
+            const errorMessage =
+              loginError.response?.data?.msg ||
+              loginError.message ||
+              "Email verified but login failed. Please try logging in manually.";
+            setError(errorMessage);
+          }
+        } else {
+          // Fallback if phone/password not available
+          localStorage.setItem("user", JSON.stringify(response.user));
+          setFormState("success");
+          setTimeout(() => {
+            navigate("/");
+          }, 2000);
+        }
       } else {
         setFormState("error");
         setAttempts((a) => a + 1);

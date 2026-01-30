@@ -47,4 +47,17 @@ export class LoginPayload {
     email: string
     otp: string
   }
+
+  export class VerifiedUser {
+    id: string
+    name: string
+    email: string
+    verificationStatus: string
+  }
+
+  export class VerifyEmailResponse {
+    status: boolean
+    msg: string
+    user: VerifiedUser
+  }
   
