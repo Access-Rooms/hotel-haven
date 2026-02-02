@@ -82,7 +82,7 @@ export function HotelProvider({ children }: HotelProviderProps) {
       // Fetch from API
       const payload: GetHotelsListPayload = {
         userId: environment.userId,
-        packageType: 'B2B',
+        packageType: 'B2C',
         // showRoomsWithRate: true,
         dateFilter: dateFilter,
       };

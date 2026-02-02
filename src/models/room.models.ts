@@ -60,6 +60,8 @@ export class Room {
     __v: number
     extraAdults: number
     pricing: Pricing[]
+    packages: Package[]
+    facilities: Facility[]
   }
   
   export interface RoomCategory {

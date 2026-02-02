@@ -114,6 +114,8 @@ export default function ReservationReview() {
   const { roomId } = useParams();
   const [searchParams] = useSearchParams();
   const hotelIdFromQuery = searchParams.get('hotelId');
+  const pricingIdFromQuery = searchParams.get('pricingId');
+  const acPreferenceFromQuery = searchParams.get('acPreference');
   const navigate = useNavigate();
   const { selectedHotel } = useHotels();
   const { checkIn, checkOut, setCheckIn, setCheckOut, guests, setGuests, dateFilter } = useBooking();
@@ -201,7 +203,7 @@ export default function ReservationReview() {
           hotelId: hotelId,
           roomId: roomId,
           dateFilter: dateFilter,
-          packageType: 'B2B',
+          packageType: 'B2C',
           showRoomsWithRate: true,
         };
 
@@ -241,12 +243,37 @@ export default function ReservationReview() {
   // Get room data
   const room = roomDetails?.data;
   
-  // Calculate required room count based on occupancy
+  // Helper function to parse child age threshold
+  const getChildAgeThreshold = (): number => {
+    if (!room?.childAge) return 12; // Default to 12 years
+    
+    // Try to extract number from strings like "0-12 years" or "12"
+    const match = room.childAge.match(/(\d+)/);
+    return match ? parseInt(match[1]) : 12;
+  };
+  
+  // Calculate required room count based on occupancy (including additional guests)
   const calculateRequiredRoomCount = useMemo(() => {
     if (!room?.totalOccupency) return 1;
-    const totalGuests = tempAdults + tempChildren;
+    
+    // Count additional guests
+    const childAgeThreshold = getChildAgeThreshold();
+    let additionalAdultsCount = 0;
+    let additionalChildrenCount = 0;
+    
+    additionalGuests.forEach((guest) => {
+      if (guest.name.trim() && guest.age > 0) {
+        if (guest.age >= childAgeThreshold) {
+          additionalAdultsCount++;
+        } else {
+          additionalChildrenCount++;
+        }
+      }
+    });
+    
+    const totalGuests = tempAdults + tempChildren + additionalAdultsCount + additionalChildrenCount;
     return Math.max(1, Math.ceil(totalGuests / room.totalOccupency));
-  }, [tempAdults, tempChildren, room?.totalOccupency]);
+  }, [tempAdults, tempChildren, room?.totalOccupency, additionalGuests]);
 
   // Auto-update room count when guests change or room details load (if it's below required)
   useEffect(() => {
@@ -258,11 +285,34 @@ export default function ReservationReview() {
   // Find pricing package that matches room count (or closest)
   // Use room.pricing if available, otherwise fallback to roomDetails.package
   const selectedPricing = useMemo(() => {
-    const pricingArray = room?.pricing || roomDetails?.package || [];
+    let pricingArray = room?.pricing || roomDetails?.package || [];
     
     if (!pricingArray || pricingArray.length === 0) return null;
     
-    // Try to find exact match first
+    // If pricing ID is provided, try to find exact match FIRST (before any filtering)
+    if (pricingIdFromQuery) {
+      const exactMatch = pricingArray.find((p: any) => p._id === pricingIdFromQuery);
+      if (exactMatch) {
+        // Verify it matches AC preference if provided
+        if (acPreferenceFromQuery !== null) {
+          const acPreference = acPreferenceFromQuery === 'true';
+          if ((acPreference && exactMatch.ac) || (!acPreference && exactMatch.nonac)) {
+            return exactMatch;
+          }
+        } else {
+          // No AC preference filter, return the exact match
+          return exactMatch;
+        }
+      }
+    }
+    
+    // Filter by AC preference if provided (after checking for pricing ID)
+    if (acPreferenceFromQuery !== null) {
+      const acPreference = acPreferenceFromQuery === 'true';
+      pricingArray = pricingArray.filter((p: any) => acPreference ? p.ac : p.nonac);
+    }
+    
+    // Try to find exact match by room count
     let match = pricingArray.find((p: any) => p.roomCount === roomCount);
     
     // If no exact match, find the closest (prefer higher roomCount packages)
@@ -272,9 +322,9 @@ export default function ReservationReview() {
       match = sorted.find((p: any) => p.roomCount >= roomCount) || sorted[sorted.length - 1];
     }
     
-    // If still no match, return the one with lowest netRate
-    return match || pricingArray.reduce((min: any, p: any) => p.netRate < min.netRate ? p : min);
-  }, [room?.pricing, roomDetails?.package, roomCount]);
+    // If still no match, return the one with lowest basePrice
+    return match || pricingArray.reduce((min: any, p: any) => p.basePrice < min.basePrice ? p : min);
+  }, [room?.pricing, roomDetails?.package, roomCount, pricingIdFromQuery, acPreferenceFromQuery]);
 
   const roomImage = room?.roomImage
     ? (room.roomImage.startsWith('http') ? room.roomImage : `${environment.imageBaseUrl}${room.roomImage}`)
@@ -289,6 +339,7 @@ export default function ReservationReview() {
         rooms: 1,
         extraAdults: 0,
         extraChildren: 0,
+        additionalGuestsTotal: 0,
         subtotal: 0,
         taxes: 0,
         discount: promoDiscount,
@@ -302,7 +353,7 @@ export default function ReservationReview() {
     }
 
     // Use netRate if available (GST inclusive), otherwise use basePrice
-    const basePrice = selectedPricing.netRate || selectedPricing.basePrice || 0;
+    const basePrice = selectedPricing.basePrice || selectedPricing.netRate || 0;
     const nights = numberOfNights;
     const rooms = roomCount;
     const baseTotal = basePrice * nights * rooms;
@@ -311,14 +362,37 @@ export default function ReservationReview() {
     const maxAdultsPerRoom = room?.maxAdults || 2;
     const totalOccupencyPerRoom = room?.totalOccupency || maxAdultsPerRoom;
     
+    // Count additional guests as adults/children based on age
+    const childAgeThreshold = getChildAgeThreshold();
+    let additionalAdultsCount = 0;
+    let additionalChildrenCount = 0;
+    
+    additionalGuests.forEach((guest) => {
+      if (guest.name.trim() && guest.age > 0) {
+        if (guest.age >= childAgeThreshold) {
+          additionalAdultsCount++;
+        } else {
+          additionalChildrenCount++;
+        }
+      }
+    });
+    
+    // Calculate total guests including additional guests
+    const totalAdults = tempAdults + additionalAdultsCount;
+    const totalChildren = tempChildren + additionalChildrenCount;
+    const totalGuests = totalAdults + totalChildren;
+    
     // Calculate extra adults and children across all rooms
     const totalCapacity = rooms * totalOccupencyPerRoom;
-    const totalGuests = tempAdults + tempChildren;
     const extraGuests = Math.max(0, totalGuests - totalCapacity);
     
-    // Distribute extra guests (prioritize adults)
-    const extraAdultsCount = Math.max(0, Math.min(extraGuests, tempAdults - (rooms * maxAdultsPerRoom)));
-    const extraChildrenCount = Math.max(0, extraGuests - extraAdultsCount);
+    // Calculate how many adults are included in base capacity
+    const baseAdultsIncluded = Math.min(totalAdults, rooms * maxAdultsPerRoom);
+    const baseChildrenIncluded = Math.min(totalChildren, totalCapacity - baseAdultsIncluded);
+    
+    // Calculate extra adults and children
+    const extraAdultsCount = Math.max(0, totalAdults - baseAdultsIncluded);
+    const extraChildrenCount = Math.max(0, totalChildren - baseChildrenIncluded);
     
     const extraAdultRate = selectedPricing.extraAdultRateWithoutExtraMatress || 0;
     const extraAdultsTotal = extraAdultsCount * extraAdultRate * nights;
@@ -348,6 +422,10 @@ export default function ReservationReview() {
       rooms,
       extraAdults: extraAdultsTotal,
       extraChildren: extraChildrenTotal,
+      extraAdultsCount,
+      extraChildrenCount,
+      totalAdults,
+      totalChildren,
       subtotal,
       taxes,
       discount,
@@ -358,7 +436,7 @@ export default function ReservationReview() {
       totalToPayNow,
       remainingBalance,
     };
-  }, [selectedPricing, numberOfNights, tempAdults, tempChildren, promoDiscount, room, roomCount, selectedHotel]);
+  }, [selectedPricing, numberOfNights, tempAdults, tempChildren, promoDiscount, room, roomCount, selectedHotel, additionalGuests]);
 
   // Phone number formatting
   const formatPhoneNumber = (value: string) => {
@@ -565,16 +643,55 @@ export default function ReservationReview() {
     setIsSubmitting(true);
 
     try {
+      // Count additional guests as adults/children based on age
+      const childAgeThreshold = getChildAgeThreshold();
+      let additionalAdultsCount = 0;
+      let additionalChildrenCount = 0;
+      
+      additionalGuests.forEach((guest) => {
+        if (guest.name.trim() && guest.age > 0) {
+          if (guest.age >= childAgeThreshold) {
+            additionalAdultsCount++;
+          } else {
+            additionalChildrenCount++;
+          }
+        }
+      });
+      
+      // Calculate total guests including additional guests
+      const totalAdults = tempAdults + additionalAdultsCount;
+      const totalChildren = tempChildren + additionalChildrenCount;
+      
       // Calculate extra adults and children
       const maxAdultsPerRoom = room?.maxAdults || 2;
       const totalOccupencyPerRoom = room?.totalOccupency || maxAdultsPerRoom;
       const totalCapacity = roomCount * totalOccupencyPerRoom;
-      const totalGuests = tempAdults + tempChildren;
-      const extraGuests = Math.max(0, totalGuests - totalCapacity);
+      const totalGuests = totalAdults + totalChildren;
       
-      // Distribute extra guests (prioritize adults)
-      const extraAdultsCount = Math.max(0, Math.min(extraGuests, tempAdults - (roomCount * maxAdultsPerRoom)));
-      const extraChildrenCount = Math.max(0, extraGuests - extraAdultsCount);
+      // Calculate how many adults are included in base capacity
+      const baseAdultsIncluded = Math.min(totalAdults, roomCount * maxAdultsPerRoom);
+      const baseChildrenIncluded = Math.min(totalChildren, totalCapacity - baseAdultsIncluded);
+      
+      // Calculate extra adults and children
+      const extraAdultsCount = Math.max(0, totalAdults - baseAdultsIncluded);
+      const extraChildrenCount = Math.max(0, totalChildren - baseChildrenIncluded);
+
+      // Build additional guests info string for remarks
+      const additionalGuestsInfo = additionalGuests
+        .filter((guest) => guest.name.trim() && guest.age > 0)
+        .map((guest, index) => {
+          const guestType = guest.age >= childAgeThreshold ? 'Adult' : 'Child';
+          return `Additional Guest ${index + 1}: ${guest.name} (${guestType}, Age: ${guest.age}${guest.relationship ? `, Relationship: ${guest.relationship}` : ''})`;
+        })
+        .join('; ');
+
+      // Combine special requests with additional guests info
+      const remarks = [
+        guestInfo.specialRequests,
+        additionalGuestsInfo,
+      ]
+        .filter(Boolean)
+        .join(' | ');
 
       // Build booking request payload
       const bookingRequest: BookingRequest = {
@@ -596,9 +713,9 @@ export default function ReservationReview() {
             numberOfRooms: roomCount,
             checkInDate: checkIn,
             checkOutDate: checkOut,
-            totalGuests: tempAdults + tempChildren,
-            adultGuests: tempAdults,
-            childGuests: tempChildren,
+            totalGuests: totalAdults + totalChildren,
+            adultGuests: totalAdults,
+            childGuests: totalChildren,
             packageSelected: selectedPricing._id || '',
             amountPerNight: pricingBreakdown.baseRoomPrice,
             totalAmount: pricingBreakdown.baseRoomPrice * numberOfNights * roomCount,
@@ -612,7 +729,7 @@ export default function ReservationReview() {
         extraAdultAmount: pricingBreakdown.extraAdults,
         extraChildAmount: pricingBreakdown.extraChildren,
         mealPlan: selectedPricing.breakfastIncluded ? 'Breakfast Included' : 'Room Only',
-        remarks: guestInfo.specialRequests || '',
+        remarks: remarks,
       };
 
       // Call booking API
@@ -1243,8 +1360,13 @@ export default function ReservationReview() {
                         <div className="flex-1">
                           <p className="text-xs text-muted-foreground mb-1">Guests</p>
                           <p className="text-sm font-medium text-foreground">
-                            {tempAdults} {tempAdults === 1 ? 'Adult' : 'Adults'}
-                            {tempChildren > 0 && `, ${tempChildren} ${tempChildren === 1 ? 'Child' : 'Children'}`}
+                            {pricingBreakdown.totalAdults || tempAdults} {(pricingBreakdown.totalAdults || tempAdults) === 1 ? 'Adult' : 'Adults'}
+                            {(pricingBreakdown.totalChildren || tempChildren) > 0 && `, ${pricingBreakdown.totalChildren || tempChildren} ${(pricingBreakdown.totalChildren || tempChildren) === 1 ? 'Child' : 'Children'}`}
+                            {additionalGuests.filter(g => g.name.trim() && g.age > 0).length > 0 && (
+                              <span className="text-xs text-muted-foreground ml-1">
+                                ({additionalGuests.filter(g => g.name.trim() && g.age > 0).length} additional)
+                              </span>
+                            )}
                           </p>
                         </div>
                         <Dialog open={showGuestSheet} onOpenChange={setShowGuestSheet}>
@@ -1427,7 +1549,7 @@ export default function ReservationReview() {
                                 </div>
                                 {pricingBreakdown.extraAdults > 0 && (
                                   <div className="flex justify-between text-sm">
-                                    <span className="text-muted-foreground">Extra Adults</span>
+                                    <span className="text-muted-foreground">Extra Adults ({pricingBreakdown.extraAdultsCount})</span>
                                     <span className="text-foreground">
                                       {hotelConfig.currencySymbol}
                                       {pricingBreakdown.extraAdults.toLocaleString()}
@@ -1436,7 +1558,7 @@ export default function ReservationReview() {
                                 )}
                                 {pricingBreakdown.extraChildren > 0 && (
                                   <div className="flex justify-between text-sm">
-                                    <span className="text-muted-foreground">Extra Children</span>
+                                    <span className="text-muted-foreground">Extra Children ({pricingBreakdown.extraChildrenCount})</span>
                                     <span className="text-foreground">
                                       {hotelConfig.currencySymbol}
                                       {pricingBreakdown.extraChildren.toLocaleString()}

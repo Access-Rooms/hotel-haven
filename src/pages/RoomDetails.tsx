@@ -26,6 +26,7 @@ export default function RoomDetails() {
   const [roomDetails, setRoomDetails] = useState<RoomDetailsResponse | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
+  const [acPreference, setAcPreference] = useState<boolean | null>(null); // true for AC, false for Non-AC, null for auto-select
 
   // Fetch room details from API
   useEffect(() => {
@@ -51,7 +52,7 @@ export default function RoomDetails() {
           hotelId: hotelId,
           roomId: roomId,
           dateFilter: dateFilter,
-          packageType: 'B2B',
+          packageType: 'B2C',
           showRoomsWithRate: true,
         };
         
@@ -83,18 +84,35 @@ export default function RoomDetails() {
 
   const roomName = room?.roomsDisplayName || 'Room';
   
+  // Get B2B pricing from room.pricing array
+  const allB2bPricing = room?.pricing?.filter(p => p.packageType === 'B2C') || [];
+  
+  // Filter B2B pricing based on AC preference
+  const b2bPricing = acPreference !== null
+    ? allB2bPricing.filter(p => acPreference ? p.ac : p.nonac)
+    : allB2bPricing;
+  
+  // Auto-detect available AC/Non-AC options
+  const hasAcOption = allB2bPricing.some(p => p.ac);
+  const hasNonAcOption = allB2bPricing.some(p => p.nonac);
+  
   // Get pricing - prefer package array, fallback to pricing array
-  const availablePricing = roomDetails?.package && roomDetails.package.length > 0
-    ? roomDetails.package
+  const availablePricing = roomDetails?.data?.packages && roomDetails?.data?.packages.length > 0
+    ? roomDetails?.data.packages
     : (room?.pricing || []);
   
-  const roomPrice = availablePricing.length > 0
-    ? Math.min(...availablePricing.map(p => p.netRate))
+  // Use filtered B2B pricing if available and preference is set, otherwise use available pricing
+  const pricingForSelection = b2bPricing.length > 0 && acPreference !== null
+    ? b2bPricing
+    : availablePricing;
+  
+  const roomPrice = pricingForSelection.length > 0
+    ? Math.min(...pricingForSelection.map(p => p.netRate))
     : 0;
   
   // Get the selected pricing package (lowest rate or first available)
-  const selectedPricing = availablePricing.length > 0
-    ? availablePricing.reduce((min, p) => p.netRate < min.netRate ? p : min)
+  const selectedPricing = pricingForSelection.length > 0
+    ? pricingForSelection.reduce((min, p) => p.netRate < min.netRate ? p : min)
     : null;
   
   const roomGuests = room?.totalOccupency || 0;
@@ -133,9 +151,23 @@ export default function RoomDetails() {
   if (room?.snacksRate > 0) additionalServices.push({ name: 'Snacks', rate: room.snacksRate });
   
   // Map facilities from API response
-  const roomAmenities = roomDetails?.facilities
+  const roomAmenities = roomDetails?.data?.facilities
     ?.filter(f => f.isSelected)
     .map(f => f.name) || [];
+
+  // Auto-select AC if available, otherwise Non-AC, when preference is null
+  useEffect(() => {
+    if (acPreference === null && allB2bPricing.length > 0) {
+      // Prefer AC if available, otherwise Non-AC
+      const acPricing = allB2bPricing.find(p => p.ac);
+      const nonAcPricing = allB2bPricing.find(p => p.nonac);
+      if (acPricing) {
+        setAcPreference(true);
+      } else if (nonAcPricing) {
+        setAcPreference(false);
+      }
+    }
+  }, [allB2bPricing, acPreference]);
 
   // Get hotel for header/footer
   const hotel = selectedHotel || null;
@@ -179,10 +211,42 @@ export default function RoomDetails() {
 
   const handleReserveNow = () => {
     if (!AuthService.isLoggedIn()) {
-      navigate('/login');
+      // Build the current room details URL with all query params
+      const currentParams = new URLSearchParams();
+      if (hotelIdFromQuery) {
+        currentParams.append('hotelId', hotelIdFromQuery);
+      }
+      if (selectedPricing?._id) {
+        currentParams.append('pricingId', selectedPricing._id);
+      }
+      if (acPreference !== null) {
+        currentParams.append('acPreference', acPreference ? 'true' : 'false');
+      }
+      
+      const currentUrl = `/rooms/${roomId}${currentParams.toString() ? `?${currentParams.toString()}` : ''}`;
+      // Redirect to login with the current URL as a redirect parameter
+      navigate(`/login?redirect=${encodeURIComponent(currentUrl)}`);
       return;
     }
-    navigate(`/reservation/${roomId}${hotelIdFromQuery ? `?hotelId=${hotelIdFromQuery}` : ''}`);
+    
+    // Build query params
+    const params = new URLSearchParams();
+    if (hotelIdFromQuery) {
+      params.append('hotelId', hotelIdFromQuery);
+    }
+    
+    // Pass selected pricing ID if available
+    if (selectedPricing?._id) {
+      params.append('pricingId', selectedPricing._id);
+    }
+    
+    // Pass AC preference if set
+    if (acPreference !== null) {
+      params.append('acPreference', acPreference ? 'true' : 'false');
+    }
+    
+    const queryString = params.toString();
+    navigate(`/reservation/${roomId}${queryString ? `?${queryString}` : ''}`);
   };
 
   const handleWhatsAppBooking = () => {
@@ -395,12 +459,7 @@ export default function RoomDetails() {
                         </p>
                       </div>
                     )}
-                    {totalRooms > 0 && (
-                      <div>
-                        <p className="font-medium text-foreground mb-1">Total Rooms</p>
-                        <p className="text-muted-foreground">{totalRooms} {totalRooms === 1 ? 'room' : 'rooms'} available</p>
-                      </div>
-                    )}
+                    
                     {minRoomsForGroup > 0 && (
                       <div>
                         <p className="font-medium text-foreground mb-1">Group Booking</p>
@@ -417,6 +476,145 @@ export default function RoomDetails() {
                     )}
                   </div>
                 </div>
+
+                {/* B2B Pricing Breakdown */}
+                {b2bPricing.length > 0 && (
+                  <div className="bg-muted/50 rounded-2xl p-6">
+                    <h2 className="font-display text-xl font-semibold text-foreground mb-4">
+                      B2B Pricing Breakdown
+                    </h2>
+                    <div className="space-y-4">
+                      {b2bPricing.map((pricing, index) => (
+                        <div key={pricing._id || index} className="bg-background rounded-xl p-5 border border-border">
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <h3 className="font-semibold text-foreground mb-1">
+                                {pricing.rateType || `Package ${index + 1}`}
+                              </h3>
+                              
+                            </div>
+                            <div className="text-right">
+                              <p className="text-2xl font-bold text-primary">
+                                {hotelConfig.currencySymbol}{pricing.basePrice.toLocaleString()}
+                              </p>
+                              {/* <p className="text-xs text-muted-foreground">Net Rate</p> */}
+                            </div>
+                          </div>
+                          
+                          <div className="grid sm:grid-cols-2 gap-4 pt-4 border-t border-border">
+                            <div>
+                              <p className="text-sm font-medium text-foreground mb-2">Base Pricing</p>
+                              <div className="space-y-1.5 text-sm">
+                                <div className="flex justify-between">
+                                  {/* <span className="text-muted-foreground">Base Price:</span> */}
+                                  <span className="text-foreground font-medium">
+                                    {hotelConfig.currencySymbol}{pricing.basePrice.toLocaleString()}
+                                  </span>
+                                </div>
+                                {/* <div className="flex justify-between">
+                                  <span className="text-muted-foreground">Net Rate:</span>
+                                  <span className="text-foreground font-medium">
+                                    {hotelConfig.currencySymbol}{pricing.netRate.toLocaleString()}
+                                  </span>
+                                </div> */}
+                              </div>
+                            </div>
+                            
+                            <div>
+                              <p className="text-sm font-medium text-foreground mb-2">Additional Rates</p>
+                              <div className="space-y-1.5 text-sm">
+                                {pricing.freeChildRate > 0 && (
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Free Child Rate:</span>
+                                    <span className="text-foreground font-medium">
+                                      {hotelConfig.currencySymbol}{pricing.freeChildRate.toLocaleString()}
+                                    </span>
+                                  </div>
+                                )}
+                                {pricing.paidChildRatewithExtraMatress > 0 && (
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Child (with mattress):</span>
+                                    <span className="text-foreground font-medium">
+                                      {hotelConfig.currencySymbol}{pricing.paidChildRatewithExtraMatress.toLocaleString()}
+                                    </span>
+                                  </div>
+                                )}
+                                {pricing.paidChildRatewithoutExtraMatress > 0 && (
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Child (no mattress):</span>
+                                    <span className="text-foreground font-medium">
+                                      {hotelConfig.currencySymbol}{pricing.paidChildRatewithoutExtraMatress.toLocaleString()}
+                                    </span>
+                                  </div>
+                                )}
+                                {pricing.extraAdultRateWithExtraMatress > 0 && (
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Extra Adult (with mattress):</span>
+                                    <span className="text-foreground font-medium">
+                                      {hotelConfig.currencySymbol}{pricing.extraAdultRateWithExtraMatress.toLocaleString()}
+                                    </span>
+                                  </div>
+                                )}
+                                {pricing.extraAdultRateWithoutExtraMatress > 0 && (
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Extra Adult (no mattress):</span>
+                                    <span className="text-foreground font-medium">
+                                      {hotelConfig.currencySymbol}{pricing.extraAdultRateWithoutExtraMatress.toLocaleString()}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Inclusions & Features */}
+                          <div className="mt-4 pt-4 border-t border-border">
+                            <p className="text-sm font-medium text-foreground mb-2">Inclusions & Features</p>
+                            <div className="flex flex-wrap gap-2">
+                              {pricing.breakfastIncluded && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-hotel-secondary/10 text-hotel-secondary text-xs">
+                                  <Check size={12} />
+                                  Breakfast Included
+                                </span>
+                              )}
+                              {pricing.haveWelcomeDrink && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-hotel-secondary/10 text-hotel-secondary text-xs">
+                                  <Check size={12} />
+                                  Welcome Drink
+                                </span>
+                              )}
+                              {pricing.ac && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs">
+                                  <Check size={12} />
+                                  Air Conditioning
+                                </span>
+                              )}
+                              {pricing.nonac && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-muted text-muted-foreground text-xs">
+                                  Non-AC
+                                </span>
+                              )}
+                              {pricing.minRooms > 1 && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-muted text-muted-foreground text-xs">
+                                  Min {pricing.minRooms} Rooms
+                                </span>
+                              )}
+                              
+                            </div>
+                          </div>
+
+                          {/* Additional Rules */}
+                          {pricing.additionalRules && (
+                            <div className="mt-4 pt-4 border-t border-border">
+                              <p className="text-sm font-medium text-foreground mb-1">Terms & Conditions</p>
+                              <p className="text-sm text-muted-foreground">{pricing.additionalRules}</p>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* YouTube Video Link */}
                 {room?.youtubeLink && (
@@ -455,6 +653,7 @@ export default function RoomDetails() {
                   </div>
                 </div>
               )}
+
 
               {/* Special Inclusions */}
               {specialInclusions.length > 0 && (
@@ -596,6 +795,57 @@ export default function RoomDetails() {
                       {hotelConfig.currencySymbol}{roomPrice.toLocaleString()}
                     </p>
                     <p className="text-muted-foreground">per night</p>
+                  </div>
+                )}
+
+                {/* AC/Non-AC Selection */}
+                {hasAcOption && hasNonAcOption && (
+                  <div className="bg-muted/50 rounded-xl p-4">
+                    <label className="text-sm font-medium text-foreground block mb-3">
+                      Room Type
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setAcPreference(true)}
+                        className={cn(
+                          "px-4 py-3 rounded-lg border-2 transition-all text-sm font-medium",
+                          acPreference === true
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border bg-background text-foreground hover:border-primary/50"
+                        )}
+                      >
+                        <div className="flex items-center justify-center gap-2">
+                          <Check size={16} className={acPreference === true ? "opacity-100" : "opacity-0"} />
+                          <span>AC</span>
+                        </div>
+                        {allB2bPricing.find(p => p.ac) && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {hotelConfig.currencySymbol}{allB2bPricing.find(p => p.ac)?.basePrice.toLocaleString()}/night
+                          </p>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAcPreference(false)}
+                        className={cn(
+                          "px-4 py-3 rounded-lg border-2 transition-all text-sm font-medium",
+                          acPreference === false
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border bg-background text-foreground hover:border-primary/50"
+                        )}
+                      >
+                        <div className="flex items-center justify-center gap-2">
+                          <Check size={16} className={acPreference === false ? "opacity-100" : "opacity-0"} />
+                          <span>Non-AC</span>
+                        </div>
+                        {allB2bPricing.find(p => p.nonac) && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {hotelConfig.currencySymbol}{allB2bPricing.find(p => p.nonac)?.basePrice.toLocaleString()}/night
+                          </p>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 )}
 

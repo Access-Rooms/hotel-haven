@@ -38,7 +38,7 @@ export function FeaturedRooms({ hotels }: FeaturedRoomsProps) {
           const payload: GetRoomsListPayload = {
             hotelId: selectedHotel._id,
             // dateFilter: dateFilter,
-            packageType: 'B2B',
+            packageType: 'B2C',
             showRoomsWithRate: true,
           };
           const response: ApiResponse<Room[]> = await homeService.getRoomsList(payload);

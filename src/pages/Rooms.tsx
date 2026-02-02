@@ -47,7 +47,7 @@ export default function Rooms() {
           const payload: GetRoomsListPayload = {
             hotelId: hotelId,
             dateFilter: dateFilter,
-            packageType: 'B2B',
+            packageType: 'B2C',
             showRoomsWithRate: true,
           };
           const response: ApiResponse<Room[]> = await homeService.getRoomsList(payload);

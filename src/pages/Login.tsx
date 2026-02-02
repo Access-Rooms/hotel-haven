@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { PhoneInput } from "@/components/auth/PhoneInput";
 import { PasswordInput } from "@/components/auth/PasswordInput";
@@ -14,6 +14,7 @@ type FormState = "idle" | "loading" | "success" | "error";
 
 const Login = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [phone, setPhone] = React.useState("");
   const [countryCode, setCountryCode] = React.useState("+91");
   const [password, setPassword] = React.useState("");
@@ -58,7 +59,10 @@ const Login = () => {
     if (response.status) {
       setFormState("success");
       localStorage.setItem("user", JSON.stringify(response.data));
-      navigate("/");
+      
+      // Check for redirect parameter and navigate to it, otherwise go to home
+      const redirectUrl = searchParams.get("redirect");
+      navigate(redirectUrl || "/");
     } else {
       setFormState("error");
       setErrors({ general: response.msg });
