@@ -19,6 +19,8 @@ import VerifyOTP from "./pages/VerifyOTP";
 import MyBookings from "./pages/MyBookings";
 import BookingDetails from "./pages/BookingDetails";
 import AddReview from "./pages/AddReview";
+import BookingSuccess from "./pages/BookingSuccess";
+import PaymentFailed from "./pages/PaymentFailed";
 
 const queryClient = new QueryClient();
 
@@ -44,6 +46,8 @@ const App = () => (
                 <Route path="/bookings" element={<MyBookings />} />
                 <Route path="/bookings/:bookingId" element={<BookingDetails />} />
                 <Route path="/bookings/:bookingId/review" element={<AddReview />} />
+                <Route path="/booking-success" element={<BookingSuccess />} />
+                <Route path="/payment-failed" element={<PaymentFailed />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>

@@ -1,6 +1,7 @@
 export interface HotelConfig {
   id: string;
-
+  name?: string;
+  tagline?: string;
   logo?: string;
   primaryColor: string;
   secondaryColor: string;
@@ -11,6 +12,20 @@ export interface HotelConfig {
   whatsappNumber: string;
   currency: string;
   currencySymbol: string;
+}
+
+export interface Room {
+  id: string;
+  name: string;
+  description: string;
+  shortDescription: string;
+  price: number;
+  maxGuests: number;
+  bedType: string;
+  size: string;
+  images: string[];
+  amenities: string[];
+  featured: boolean;
 }
 
 export interface Amenity {
