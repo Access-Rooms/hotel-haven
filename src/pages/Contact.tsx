@@ -29,7 +29,7 @@ export default function Contact() {
         whatsapp: hotelConfig.whatsappNumber,
         receptionHours: '24/7 — Always at your service',
         location: hotelConfig.address,
-        hotelName: hotelConfig.name,
+        hotelName: selectedHotel?.hotelName,
       };
     }
 
@@ -74,7 +74,7 @@ export default function Contact() {
       whatsapp: selectedHotel.whatsappNumber || hotelConfig.whatsappNumber,
       receptionHours,
       location: mapLocation,
-      hotelName: selectedHotel.hotelName || hotelConfig.name,
+      hotelName: selectedHotel.hotelName,
     };
   }, [selectedHotel]);
 

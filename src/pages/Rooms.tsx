@@ -105,7 +105,7 @@ export default function Rooms() {
             Our Rooms & Suites
           </h1>
           <p className="text-primary-foreground/80 text-lg max-w-2xl mx-auto">
-            Discover the perfect accommodation for your stay at {hotelConfig.name}
+            Discover the perfect accommodation for your stay at {selectedHotel?.hotelName}
           </p>
         </div>
       </section>

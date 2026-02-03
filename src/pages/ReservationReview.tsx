@@ -358,10 +358,6 @@ export default function ReservationReview() {
     const rooms = roomCount;
     const baseTotal = basePrice * nights * rooms;
 
-    // Calculate extra charges per room
-    const maxAdultsPerRoom = room?.maxAdults || 2;
-    const totalOccupencyPerRoom = room?.totalOccupency || maxAdultsPerRoom;
-    
     // Count additional guests as adults/children based on age
     const childAgeThreshold = getChildAgeThreshold();
     let additionalAdultsCount = 0;
@@ -382,22 +378,40 @@ export default function ReservationReview() {
     const totalChildren = tempChildren + additionalChildrenCount;
     const totalGuests = totalAdults + totalChildren;
     
-    // Calculate extra adults and children across all rooms
-    const totalCapacity = rooms * totalOccupencyPerRoom;
-    const extraGuests = Math.max(0, totalGuests - totalCapacity);
+    // Room occupancy logic:
+    // - minAdults is the base occupancy (base rate covers up to minAdults per room)
+    // - totalOccupency is the maximum capacity per room
+    // - Any guests beyond minAdults (up to totalOccupency) are extra and charged
+    const minAdultsPerRoom = room?.minAdults || 2;
+    const totalOccupencyPerRoom = room?.totalOccupency || minAdultsPerRoom;
     
-    // Calculate how many adults are included in base capacity
-    const baseAdultsIncluded = Math.min(totalAdults, rooms * maxAdultsPerRoom);
-    const baseChildrenIncluded = Math.min(totalChildren, totalCapacity - baseAdultsIncluded);
+    // Calculate base occupancy covered by base rate (across all rooms)
+    const baseOccupancyCovered = rooms * minAdultsPerRoom;
     
-    // Calculate extra adults and children
-    const extraAdultsCount = Math.max(0, totalAdults - baseAdultsIncluded);
-    const extraChildrenCount = Math.max(0, totalChildren - baseChildrenIncluded);
+    // Calculate total guests that need to be accommodated
+    // Ensure we don't exceed maximum capacity
+    const maxCapacity = rooms * totalOccupencyPerRoom;
+    const validTotalGuests = Math.min(totalGuests, maxCapacity);
     
-    const extraAdultRate = selectedPricing.extraAdultRateWithoutExtraMatress || 0;
+    // Calculate extra guests (beyond base occupancy)
+    // These are the guests that need to pay extra charges
+    const extraGuestsCount = Math.max(0, validTotalGuests - baseOccupancyCovered);
+    
+    // Distribute extra guests between adults and children
+    // Priority: adults first, then children
+    const baseAdultsCovered = Math.min(totalAdults, baseOccupancyCovered);
+    const remainingBaseCapacity = baseOccupancyCovered - baseAdultsCovered;
+    const baseChildrenCovered = Math.min(totalChildren, remainingBaseCapacity);
+    
+    // Calculate how many adults and children are extra
+    const extraAdultsCount = Math.max(0, totalAdults - baseAdultsCovered);
+    const extraChildrenCount = Math.max(0, totalChildren - baseChildrenCovered);
+    
+    // Calculate extra charges using "WithExtraMatress" rates
+    const extraAdultRate = selectedPricing.extraAdultRateWithExtraMatress || 0;
     const extraAdultsTotal = extraAdultsCount * extraAdultRate * nights;
 
-    const extraChildRate = selectedPricing.paidChildRatewithoutExtraMatress || 0;
+    const extraChildRate = selectedPricing.paidChildRatewithExtraMatress || 0;
     const extraChildrenTotal = extraChildrenCount * extraChildRate * nights;
 
     const subtotal = baseTotal + extraAdultsTotal + extraChildrenTotal;
@@ -661,20 +675,35 @@ export default function ReservationReview() {
       // Calculate total guests including additional guests
       const totalAdults = tempAdults + additionalAdultsCount;
       const totalChildren = tempChildren + additionalChildrenCount;
-      
-      // Calculate extra adults and children
-      const maxAdultsPerRoom = room?.maxAdults || 2;
-      const totalOccupencyPerRoom = room?.totalOccupency || maxAdultsPerRoom;
-      const totalCapacity = roomCount * totalOccupencyPerRoom;
       const totalGuests = totalAdults + totalChildren;
       
-      // Calculate how many adults are included in base capacity
-      const baseAdultsIncluded = Math.min(totalAdults, roomCount * maxAdultsPerRoom);
-      const baseChildrenIncluded = Math.min(totalChildren, totalCapacity - baseAdultsIncluded);
+      // Room occupancy logic:
+      // - minAdults is the base occupancy (base rate covers up to minAdults per room)
+      // - totalOccupency is the maximum capacity per room
+      // - Any guests beyond minAdults (up to totalOccupency) are extra and charged
+      const minAdultsPerRoom = room?.minAdults || 2;
+      const totalOccupencyPerRoom = room?.totalOccupency || minAdultsPerRoom;
       
-      // Calculate extra adults and children
-      const extraAdultsCount = Math.max(0, totalAdults - baseAdultsIncluded);
-      const extraChildrenCount = Math.max(0, totalChildren - baseChildrenIncluded);
+      // Calculate base occupancy covered by base rate (across all rooms)
+      const baseOccupancyCovered = roomCount * minAdultsPerRoom;
+      
+      // Calculate total guests that need to be accommodated
+      // Ensure we don't exceed maximum capacity
+      const maxCapacity = roomCount * totalOccupencyPerRoom;
+      const validTotalGuests = Math.min(totalGuests, maxCapacity);
+      
+      // Calculate extra guests (beyond base occupancy)
+      const extraGuestsCount = Math.max(0, validTotalGuests - baseOccupancyCovered);
+      
+      // Distribute extra guests between adults and children
+      // Priority: adults first, then children
+      const baseAdultsCovered = Math.min(totalAdults, baseOccupancyCovered);
+      const remainingBaseCapacity = baseOccupancyCovered - baseAdultsCovered;
+      const baseChildrenCovered = Math.min(totalChildren, remainingBaseCapacity);
+      
+      // Calculate how many adults and children are extra
+      const extraAdultsCount = Math.max(0, totalAdults - baseAdultsCovered);
+      const extraChildrenCount = Math.max(0, totalChildren - baseChildrenCovered);
 
       // Build additional guests info string for remarks
       const additionalGuestsInfo = additionalGuests
@@ -757,7 +786,7 @@ export default function ReservationReview() {
 
   // WhatsApp message
   const handleWhatsAppHelp = () => {
-    const hotelName = selectedHotel?.hotelName || hotelConfig.name;
+    const hotelName = selectedHotel?.hotelName;
     const roomName = room?.roomsDisplayName || 'Room';
     const message = `I need help with my booking for ${roomName} at ${hotelName}.`;
     const whatsappNumber = selectedHotel?.whatsappNumber || hotelConfig.whatsappNumber;
@@ -1263,7 +1292,7 @@ export default function ReservationReview() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="font-semibold text-foreground mb-1 truncate">
-                          {hotel?.hotelName || hotelConfig.name}
+                          {hotel?.hotelName}
                         </h3>
                         <p className="text-sm text-muted-foreground mb-1 truncate">
                           {hotel?.locationName || hotel?.townName || hotelConfig.location}
@@ -1407,16 +1436,59 @@ export default function ReservationReview() {
                                   Add as many children as needed. Room count will adjust automatically.
                                 </p>
                               </div>
-                              {room?.totalOccupency && (
-                                <div className="p-3 bg-muted/50 rounded-lg">
-                                  <p className="text-xs text-muted-foreground mb-1">
-                                    Current selection: {tempAdults + tempChildren} {tempAdults + tempChildren === 1 ? 'guest' : 'guests'}
-                                  </p>
-                                  <p className="text-xs font-medium text-foreground">
-                                    Required rooms: {Math.max(1, Math.ceil((tempAdults + tempChildren) / room.totalOccupency))} {Math.max(1, Math.ceil((tempAdults + tempChildren) / room.totalOccupency)) === 1 ? 'room' : 'rooms'} (Occupancy: {room.totalOccupency} per room)
-                                  </p>
-                                </div>
-                              )}
+                              {room?.totalOccupency && (() => {
+                                // Calculate extra persons for display in dialog
+                                const minAdultsPerRoom = room?.minAdults || 2;
+                                const totalOccupencyPerRoom = room?.totalOccupency || minAdultsPerRoom;
+                                const currentRoomCount = Math.max(1, Math.ceil((tempAdults + tempChildren) / totalOccupencyPerRoom));
+                                const baseOccupancyCovered = currentRoomCount * minAdultsPerRoom;
+                                const totalGuests = tempAdults + tempChildren;
+                                const validTotalGuests = Math.min(totalGuests, currentRoomCount * totalOccupencyPerRoom);
+                                const extraGuestsCount = Math.max(0, validTotalGuests - baseOccupancyCovered);
+                                
+                                // Distribute extra guests
+                                const baseAdultsCovered = Math.min(tempAdults, baseOccupancyCovered);
+                                const remainingBaseCapacity = baseOccupancyCovered - baseAdultsCovered;
+                                const baseChildrenCovered = Math.min(tempChildren, remainingBaseCapacity);
+                                const extraAdultsCount = Math.max(0, tempAdults - baseAdultsCovered);
+                                const extraChildrenCount = Math.max(0, tempChildren - baseChildrenCovered);
+                                
+                                return (
+                                  <div className="p-3 bg-muted/50 rounded-lg space-y-2">
+                                    <div>
+                                      <p className="text-xs text-muted-foreground mb-1">
+                                        Current selection: {tempAdults + tempChildren} {tempAdults + tempChildren === 1 ? 'guest' : 'guests'} ({tempAdults} {tempAdults === 1 ? 'adult' : 'adults'}{tempChildren > 0 && `, ${tempChildren} ${tempChildren === 1 ? 'child' : 'children'}`})
+                                      </p>
+                                      <p className="text-xs font-medium text-foreground">
+                                        Required rooms: {currentRoomCount} {currentRoomCount === 1 ? 'room' : 'rooms'} (Max occupancy: {totalOccupencyPerRoom} per room)
+                                      </p>
+                                    </div>
+                                    {extraGuestsCount > 0 && (
+                                      <div className="pt-2 border-t border-border/50">
+                                        <p className="text-xs font-medium text-foreground mb-1">
+                                          Extra Persons (beyond base occupancy of {minAdultsPerRoom} per room):
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {extraAdultsCount > 0 && `${extraAdultsCount} ${extraAdultsCount === 1 ? 'adult' : 'adults'}`}
+                                          {extraAdultsCount > 0 && extraChildrenCount > 0 && ' + '}
+                                          {extraChildrenCount > 0 && `${extraChildrenCount} ${extraChildrenCount === 1 ? 'child' : 'children'}`}
+                                          {' '}(Total: {extraGuestsCount} {extraGuestsCount === 1 ? 'extra person' : 'extra persons'})
+                                        </p>
+                                        <p className="text-xs text-primary mt-1 font-medium">
+                                          Extra persons will be charged additional rates
+                                        </p>
+                                      </div>
+                                    )}
+                                    {extraGuestsCount === 0 && (
+                                      <div className="pt-2 border-t border-border/50">
+                                        <p className="text-xs text-muted-foreground">
+                                          Base occupancy: {minAdultsPerRoom} {minAdultsPerRoom === 1 ? 'person' : 'persons'} per room (included in base rate)
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                               <div className="flex gap-2 pt-2">
                                 <Button 
                                   variant="outline" 
@@ -1482,11 +1554,11 @@ export default function ReservationReview() {
                     )}
 
                     {/* Cancellation Policy Link */}
-                    <div className="pt-3 border-t">
+                    {/* <div className="pt-3 border-t">
                       <Button variant="link" className="p-0 h-auto text-xs" asChild>
                         <Link to="/contact">View Cancellation Policy</Link>
                       </Button>
-                    </div>
+                    </div> */}
                   </CardContent>
                 </Card>
 
@@ -1547,22 +1619,36 @@ export default function ReservationReview() {
                                     {(pricingBreakdown.baseRoomPrice * pricingBreakdown.nights * pricingBreakdown.rooms).toLocaleString()}
                                   </span>
                                 </div>
-                                {pricingBreakdown.extraAdults > 0 && (
-                                  <div className="flex justify-between text-sm">
-                                    <span className="text-muted-foreground">Extra Adults ({pricingBreakdown.extraAdultsCount})</span>
-                                    <span className="text-foreground">
-                                      {hotelConfig.currencySymbol}
-                                      {pricingBreakdown.extraAdults.toLocaleString()}
-                                    </span>
-                                  </div>
-                                )}
-                                {pricingBreakdown.extraChildren > 0 && (
-                                  <div className="flex justify-between text-sm">
-                                    <span className="text-muted-foreground">Extra Children ({pricingBreakdown.extraChildrenCount})</span>
-                                    <span className="text-foreground">
-                                      {hotelConfig.currencySymbol}
-                                      {pricingBreakdown.extraChildren.toLocaleString()}
-                                    </span>
+                                {(pricingBreakdown.extraAdults > 0 || pricingBreakdown.extraChildren > 0) && (
+                                  <div className="pt-2 border-t border-border/50">
+                                    <p className="text-xs font-medium text-foreground mb-2">
+                                      Extra Persons (beyond base occupancy)
+                                    </p>
+                                    {pricingBreakdown.extraAdults > 0 && (
+                                      <div className="flex justify-between text-sm mb-1">
+                                        <span className="text-muted-foreground">
+                                          Extra Adults ({pricingBreakdown.extraAdultsCount} × {selectedPricing?.extraAdultRateWithExtraMatress || 0} × {pricingBreakdown.nights} {pricingBreakdown.nights === 1 ? 'night' : 'nights'})
+                                        </span>
+                                        <span className="text-foreground">
+                                          {hotelConfig.currencySymbol}
+                                          {pricingBreakdown.extraAdults.toLocaleString()}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {pricingBreakdown.extraChildren > 0 && (
+                                      <div className="flex justify-between text-sm mb-1">
+                                        <span className="text-muted-foreground">
+                                          Extra Children ({pricingBreakdown.extraChildrenCount} × {selectedPricing?.paidChildRatewithExtraMatress || 0} × {pricingBreakdown.nights} {pricingBreakdown.nights === 1 ? 'night' : 'nights'})
+                                        </span>
+                                        <span className="text-foreground">
+                                          {hotelConfig.currencySymbol}
+                                          {pricingBreakdown.extraChildren.toLocaleString()}
+                                        </span>
+                                      </div>
+                                    )}
+                                    <p className="text-xs text-muted-foreground mt-2">
+                                      Base occupancy: {room?.minAdults || 2} {room?.minAdults === 1 ? 'person' : 'persons'} per room (included in base rate)
+                                    </p>
                                   </div>
                                 )}
                                 <div className="flex justify-between text-sm pt-2 border-t">

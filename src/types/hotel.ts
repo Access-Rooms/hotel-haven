@@ -13,20 +13,6 @@ export interface HotelConfig {
   currencySymbol: string;
 }
 
-export interface Room {
-  id: string;
-  name: string;
-  description: string;
-  shortDescription: string;
-  price: number;
-  maxGuests: number;
-  bedType: string;
-  size: string;
-  images: string[];
-  amenities: string[];
-  featured: boolean;
-}
-
 export interface Amenity {
   id: string;
   name: string;
