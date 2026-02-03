@@ -250,7 +250,7 @@ export default function RoomDetails() {
   };
 
   const handleWhatsAppBooking = () => {
-    const hotelName = hotel?.hotelName || hotelConfig.name;
+    const hotelName = hotel?.hotelName;
     const message = `Hi, I'd like to book the ${roomName} at ${hotelName}.${
       checkIn ? ` Check-in: ${checkIn}` : ''
     }${checkOut ? `, Check-out: ${checkOut}` : ''}`;

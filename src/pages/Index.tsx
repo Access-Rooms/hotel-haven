@@ -18,7 +18,7 @@ const Index = () => {
       <Header hotel={selectedHotel || null} />
       <main>
         <HeroSection hotels={hotels}/>
-        <AboutSection />
+        <AboutSection hotel={selectedHotel || null} />
         <FeaturedRooms hotels={hotels} />
         <AmenitiesSection hotelId={selectedHotel?._id || null}/>
         <GalleryPreview hotel={selectedHotel || null}/>

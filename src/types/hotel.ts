@@ -1,7 +1,6 @@
 export interface HotelConfig {
   id: string;
-  name: string;
-  tagline: string;
+
   logo?: string;
   primaryColor: string;
   secondaryColor: string;

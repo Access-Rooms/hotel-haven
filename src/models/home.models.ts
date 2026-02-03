@@ -73,6 +73,19 @@ export class Hotel {
     paymentQrCode: string
     roomRates: RoomRate[]
     facilities: Facilities
+    websiteData: WebsiteData
+  }
+
+  export interface WebsiteData {
+    websiteUrl: string
+    coverImage: string
+    logo: string
+    title: string
+    description: string
+    features?: string[]
+    services?: string[]
+    highlightText?: string
+    shortDescription?: string
   }
   
   export class HotelType {

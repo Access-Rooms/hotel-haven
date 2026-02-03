@@ -27,7 +27,7 @@ export function Footer({ hotel }: { hotel: Hotel | null }) {
               </div>
               <div>
                 <h3 className="font-display font-semibold text-lg">{selectedHotel?.hotelName}</h3>
-                <p className="text-sm text-background/60">{hotelConfig?.tagline}</p>
+                <p className="text-sm text-background/60">{selectedHotel?.websiteData?.highlightText}</p>
               </div>
             </div>
             <p className="text-background/70 text-sm leading-relaxed">
@@ -66,13 +66,22 @@ export function Footer({ hotel }: { hotel: Hotel | null }) {
           {/* Services */}
           <div>
             <h4 className="font-display font-semibold mb-4">Services</h4>
+            {selectedHotel?.websiteData?.services?.length > 0 && (
             <ul className="space-y-3 text-sm text-background/70">
-              <li>Room Service</li>
-              <li>Spa & Wellness</li>
-              <li>Restaurant & Bar</li>
-              <li>Airport Transfer</li>
-              <li>Event Hosting</li>
+              {selectedHotel?.websiteData?.services?.map((service) => (
+                <li key={service}>{service}</li>
+              ))}
             </ul>
+            )}
+            {selectedHotel?.websiteData?.services?.length === 0 || !selectedHotel?.websiteData?.services && (
+              <ul className="space-y-3 text-sm text-background/70">
+                <li>Room Service</li>
+                <li>Spa & Wellness</li>
+                <li>Restaurant & Bar</li>
+                <li>Airport Transfer</li>
+                <li>Event Hosting</li>
+              </ul>
+            )}
           </div>
 
           {/* Contact */}

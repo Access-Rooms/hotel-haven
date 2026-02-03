@@ -64,7 +64,7 @@ export function HeroSection({ hotels }: HeroSectionProps) {
             {localSelectedHotel?.hotelName}
           </h1>
           <p className="text-card/90 text-lg sm:text-xl max-w-2xl mx-auto">
-            {hotelConfig?.tagline}. Discover the perfect blend of luxury, comfort, and breathtaking ocean views at {localSelectedHotel?.locationName}.
+          {localSelectedHotel?.websiteData?.highlightText || ('. Discover the perfect blend of luxury, comfort, and breathtaking ocean views at ' + localSelectedHotel?.locationName)}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
             <Button variant="hero" size="xl" asChild>
