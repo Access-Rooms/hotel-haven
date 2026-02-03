@@ -110,21 +110,23 @@ export function Header({ hotel }: { hotel: Hotel | null }) {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-8">
-            {navLinks.map((link) => (
-              <Link
-                key={link.name}
-                to={link.href + `?hotelId=${selectedHotel?._id}`}
-                className={cn(
-                  'relative font-medium transition-colors text-sm',
-                  isScrolled || !isHomePage ? 'text-foreground hover:text-primary' : 'text-card hover:text-card/80',
-                  location.pathname === link.href && 'text-primary',
-                  'after:absolute after:bottom-[-4px] after:left-0 after:h-0.5 after:bg-primary after:transition-all after:duration-300',
-                  location.pathname === link.href ? 'after:w-full' : 'after:w-0 hover:after:w-full'
-                )}
-              >
-                {link.name}
-              </Link>
-            ))}
+            {navLinks
+              .filter((link) => link.name !== 'My Bookings' || isLoggedIn)
+              .map((link) => (
+                <Link
+                  key={link.name}
+                  to={link.href + `?hotelId=${selectedHotel?._id}`}
+                  className={cn(
+                    'relative font-medium transition-colors text-sm',
+                    isScrolled || !isHomePage ? 'text-foreground hover:text-primary' : 'text-card hover:text-card/80',
+                    location.pathname === link.href && 'text-primary',
+                    'after:absolute after:bottom-[-4px] after:left-0 after:h-0.5 after:bg-primary after:transition-all after:duration-300',
+                    location.pathname === link.href ? 'after:w-full' : 'after:w-0 hover:after:w-full'
+                  )}
+                >
+                  {link.name}
+                </Link>
+              ))}
           </div>
 
           {/* CTA Buttons */}
@@ -160,12 +162,12 @@ export function Header({ hotel }: { hotel: Hotel | null }) {
                       Bookings
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
+                  {/* <DropdownMenuItem asChild>
                     <Link to="/chart" className="flex items-center gap-2 cursor-pointer">
                       <BarChart3 size={16} />
                       Chart
                     </Link>
-                  </DropdownMenuItem>
+                  </DropdownMenuItem> */}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="flex items-center gap-2 cursor-pointer text-destructive focus:text-destructive">
                     <LogOut size={16} />
@@ -206,20 +208,22 @@ export function Header({ hotel }: { hotel: Hotel | null }) {
         isMobileMenuOpen ? 'max-h-[400px] opacity-100' : 'max-h-0 opacity-0'
       )}>
         <div className="container-hotel py-6 space-y-4">
-          {navLinks.map((link) => (
-            <Link
-              key={link.name}
-              to={link.href}
-              className={cn(
-                'block py-3 px-4 rounded-lg font-medium transition-colors',
-                location.pathname === link.href
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-foreground hover:bg-muted'
-              )}
-            >
-              {link.name}
-            </Link>
-          ))}
+          {navLinks
+            .filter((link) => link.name !== 'My Bookings' || isLoggedIn)
+            .map((link) => (
+              <Link
+                key={link.name}
+                to={link.href}
+                className={cn(
+                  'block py-3 px-4 rounded-lg font-medium transition-colors',
+                  location.pathname === link.href
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-foreground hover:bg-muted'
+                )}
+              >
+                {link.name}
+              </Link>
+            ))}
           <div className="pt-4 border-t border-border space-y-3">
             <a
               href={`tel:${selectedHotel?.contactDetails.phoneNumber[0]}`}
@@ -237,13 +241,13 @@ export function Header({ hotel }: { hotel: Hotel | null }) {
                   <Calendar size={18} />
                   Bookings
                 </Link>
-                <Link
+                {/* <Link
                   to="/chart"
                   className="flex items-center gap-3 py-3 px-4 rounded-lg font-medium transition-colors text-foreground hover:bg-muted hover:text-foreground"
                 >
                   <BarChart3 size={18} />
                   Chart
-                </Link>
+                </Link> */}
                 <button
                   onClick={handleLogout}
                   className="flex items-center gap-3 py-3 px-4 rounded-lg font-medium transition-colors text-destructive hover:bg-muted hover:text-foreground w-full text-left"

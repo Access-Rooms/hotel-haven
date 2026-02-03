@@ -9,7 +9,7 @@ export function CTASection({ hotel }: { hotel: Hotel | null }) {
   const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(hotel);
   const handleWhatsApp = () => {
     window.open(
-      `https://wa.me/${hotelConfig.whatsappNumber.replace(/\D/g, '')}?text=Hi, I'd like to inquire about booking a room at ${hotelConfig.name}.`,
+      `https://wa.me/${selectedHotel?.whatsappNumber || hotelConfig.whatsappNumber.replace(/\D/g, '')}?text=Hi, I'd like to inquire about booking a room at ${selectedHotel?.hotelName}.`,
       '_blank'
     );
   };
@@ -40,7 +40,7 @@ export function CTASection({ hotel }: { hotel: Hotel | null }) {
               Ready for Your Dream Getaway?
             </h2>
             <p className="text-card/90 text-lg max-w-2xl mx-auto mb-8">
-              Book your stay today and experience the luxury, comfort, and world-class hospitality that awaits at {hotelConfig.name}.
+              {selectedHotel?.websiteData.shortDescription || 'Book your stay today and experience the luxury, comfort, and world-class hospitality that awaits at ' + selectedHotel?.hotelName}.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -55,7 +55,7 @@ export function CTASection({ hotel }: { hotel: Hotel | null }) {
 
             <p className="mt-8 text-card/70 text-sm">
               Or call us directly at{' '}
-              <a href={`tel:${hotelConfig.phone}`} className="text-card underline hover:no-underline">
+              <a href={`tel:${selectedHotel?.contactDetails?.phoneNumber[0]?.number || hotelConfig.phone}`} className="text-card underline hover:no-underline">
                 {hotelConfig.phone}
               </a>
             </p>

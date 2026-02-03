@@ -34,17 +34,11 @@ export function AboutSection({ hotel }: { hotel: Hotel | null }) {
     const images: string[] = [];
 
     if (selectedHotel) {
-      console.log('Selected Hotel:', selectedHotel);
-      console.log('Cover Images:', selectedHotel.coverImages);
-      console.log('Interior Images:', selectedHotel.interiorImage);
-      console.log('Additional Images:', selectedHotel.additionalImages);
-
       // Add cover image if available
       if (selectedHotel.coverImages) {
         const coverUrl = getImageUrl(selectedHotel.coverImages);
         if (coverUrl) {
           images.push(coverUrl);
-          console.log('Added cover image:', coverUrl);
         }
       }
 
@@ -55,7 +49,6 @@ export function AboutSection({ hotel }: { hotel: Hotel | null }) {
           const imageUrl = getImageUrl(imagePath);
           if (imageUrl) {
             images.push(imageUrl);
-            console.log('Added interior image:', imageUrl);
           }
         });
       }
@@ -66,7 +59,6 @@ export function AboutSection({ hotel }: { hotel: Hotel | null }) {
           const imageUrl = getImageUrl(img);
           if (imageUrl) {
             images.push(imageUrl);
-            console.log('Added additional image:', imageUrl);
           }
         });
       }

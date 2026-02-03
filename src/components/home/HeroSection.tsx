@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { Hotel } from '@/models/home.models';
 import { useBooking } from '@/contexts/BookingContext';
 import { useHotels } from '@/contexts/HotelContext';
+import { environment } from '../../../environment';
 
 interface HeroSectionProps {
   hotels?: Hotel[];
@@ -18,7 +19,6 @@ export function HeroSection({ hotels }: HeroSectionProps) {
   const [localSelectedHotel, setLocalSelectedHotel] = useState<Hotel | null>(
     contextSelectedHotel || hotels?.[0] || null
   );
-  console.log(hotels, 'hotels');
   
 
   // Update local hotel when context or hotels prop changes
@@ -39,14 +39,22 @@ export function HeroSection({ hotels }: HeroSectionProps) {
     }
   };
 
-  const showHotelSelector = hotels && hotels.length > 1;
+  const getImageUrl = (imagePath: string | undefined): string | null => {
+    if (!imagePath) return null;
+    // If already a full URL, return as is
+    if (typeof imagePath === 'string' && (imagePath.startsWith('http://') || imagePath.startsWith('https://'))) {
+      return imagePath;
+    }
+    return `${environment.imageBaseUrl}${imagePath}`;
+  };
 
+  const showHotelSelector = hotels && hotels.length > 1;
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Background Image */}
       <div className="absolute inset-0">
         <img
-          src="https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=1920&q=80"
+          src={getImageUrl(localSelectedHotel?.websiteData?.coverImage) || "https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=1920&q=80"}
           alt="Ocean Pearl Resort"
           className="w-full h-full object-cover"
         />
