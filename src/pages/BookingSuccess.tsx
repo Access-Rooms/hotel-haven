@@ -26,23 +26,42 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { hotelConfig } from '@/data/hotelData';
-import { cn } from '@/lib/utils';
+import { useHotels } from '@/contexts/HotelContext';
+import { useBooking } from '@/contexts/BookingContext';
+import { environment } from '../../environment';
 
-// Mock booking data - in real app this would come from URL params or API
-const mockBookingData = {
-  referenceId: 'AR-982341',
-  hotelName: 'Ocean Pearl Resort',
-  location: 'Goa, India',
-  roomType: 'Deluxe Sea View',
-  checkIn: '15 Feb 2026',
-  checkOut: '18 Feb 2026',
-  nights: 3,
-  guests: { adults: 2, children: 1 },
-  totalAmount: 18500,
-  paymentMethod: 'UPI',
-  status: 'confirmed',
-  email: 'john.doe@email.com',
-  phone: '+91 98765 43210',
+// Helper function to format date
+const formatDate = (dateString: string | null): string => {
+  if (!dateString) return 'N/A';
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+  } catch {
+    return dateString;
+  }
+};
+
+// Helper function to calculate nights
+const calculateNights = (checkIn: string | null, checkOut: string | null): number => {
+  if (!checkIn || !checkOut) return 0;
+  try {
+    const checkInDate = new Date(checkIn);
+    const checkOutDate = new Date(checkOut);
+    const diffTime = checkOutDate.getTime() - checkInDate.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 ? diffDays : 0;
+  } catch {
+    return 0;
+  }
+};
+
+// Helper function to get image URL
+const getImageUrl = (imagePath: string | undefined): string | null => {
+  if (!imagePath) return null;
+  if (typeof imagePath === 'string' && (imagePath.startsWith('http://') || imagePath.startsWith('https://'))) {
+    return imagePath;
+  }
+  return `${environment.imageBaseUrl}${imagePath}`;
 };
 
 const confettiColors = ['#0A5EFF', '#00C2A8', '#FFB800', '#FF6B6B', '#A855F7'];
@@ -186,7 +205,27 @@ function DeliveryStatus() {
 
 export default function BookingSuccess() {
   const [searchParams] = useSearchParams();
-  const bookingRef = searchParams.get('ref') || mockBookingData.referenceId;
+  const { selectedHotel } = useHotels();
+  const { checkIn, checkOut, guests } = useBooking();
+  
+  const bookingRef = searchParams.get('ref') || 'N/A';
+  
+  // Get booking data from URL params
+  const roomType = searchParams.get('roomType') || '';
+  const totalAmount = searchParams.get('amount') ? parseFloat(searchParams.get('amount')!) : null;
+  const paymentMethod = searchParams.get('paymentMethod') || '';
+  const adults = searchParams.get('adults') ? parseInt(searchParams.get('adults')!) : guests;
+  const children = searchParams.get('children') ? parseInt(searchParams.get('children')!) : 0;
+  
+  // Format dates
+  const checkInFormatted = formatDate(checkIn);
+  const checkOutFormatted = formatDate(checkOut);
+  const nights = calculateNights(checkIn, checkOut);
+  
+  // Get hotel data
+  const hotelName = selectedHotel?.hotelName || hotelConfig.name || 'Hotel';
+  const location = selectedHotel?.locationName || selectedHotel?.address || '';
+  const hotelImage = selectedHotel?.websiteData?.coverImage || selectedHotel?.coverImages || '';
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -195,14 +234,22 @@ export default function BookingSuccess() {
         <div className="container-hotel">
           <div className="flex items-center justify-between">
             <Link to="/" className="flex items-center gap-3 group">
-              <div className="w-10 h-10 rounded-xl bg-gradient-hero flex items-center justify-center shadow-soft">
-                <span className="text-primary-foreground font-display font-bold text-lg">
-                  {hotelConfig.name?.charAt(0) || 'O'}
-                </span>
+              <div className="w-10 h-10 rounded-xl bg-gradient-hero flex items-center justify-center shadow-soft overflow-hidden">
+                {selectedHotel?.propertyLogo ? (
+                  <img 
+                    src={getImageUrl(selectedHotel.propertyLogo) || ''} 
+                    alt={hotelName}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-primary-foreground font-display font-bold text-lg">
+                    {hotelName.charAt(0)}
+                  </span>
+                )}
               </div>
               <div className="hidden sm:block">
                 <h1 className="font-display font-semibold text-lg text-foreground">
-                  {hotelConfig.name || 'Ocean Pearl Resort'}
+                  {hotelName}
                 </h1>
               </div>
             </Link>
@@ -287,18 +334,22 @@ export default function BookingSuccess() {
                 <div className="flex items-start gap-4 mb-6">
                   <div className="w-20 h-20 rounded-xl bg-muted overflow-hidden flex-shrink-0">
                     <img 
-                      src="https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=200" 
-                      alt={mockBookingData.hotelName}
+                      src={getImageUrl(hotelImage) || "https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=200"} 
+                      alt={hotelName}
                       className="w-full h-full object-cover"
                     />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-lg text-foreground">{mockBookingData.hotelName}</h3>
-                    <p className="text-muted-foreground flex items-center gap-1.5 mt-1">
-                      <MapPin className="w-4 h-4" />
-                      {mockBookingData.location}
-                    </p>
-                    <p className="text-primary font-medium mt-1">{mockBookingData.roomType}</p>
+                    <h3 className="font-semibold text-lg text-foreground">{hotelName}</h3>
+                    {location && (
+                      <p className="text-muted-foreground flex items-center gap-1.5 mt-1">
+                        <MapPin className="w-4 h-4" />
+                        {location}
+                      </p>
+                    )}
+                    {roomType && (
+                      <p className="text-primary font-medium mt-1">{roomType}</p>
+                    )}
                   </div>
                 </div>
 
@@ -309,23 +360,23 @@ export default function BookingSuccess() {
                   <div className="text-center p-4 rounded-xl bg-muted/50">
                     <Calendar className="w-5 h-5 mx-auto mb-2 text-primary" />
                     <p className="text-xs text-muted-foreground mb-1">Check-in</p>
-                    <p className="font-semibold text-foreground text-sm">{mockBookingData.checkIn}</p>
+                    <p className="font-semibold text-foreground text-sm">{checkInFormatted}</p>
                   </div>
                   <div className="text-center p-4 rounded-xl bg-muted/50">
                     <Calendar className="w-5 h-5 mx-auto mb-2 text-primary" />
                     <p className="text-xs text-muted-foreground mb-1">Check-out</p>
-                    <p className="font-semibold text-foreground text-sm">{mockBookingData.checkOut}</p>
+                    <p className="font-semibold text-foreground text-sm">{checkOutFormatted}</p>
                   </div>
                   <div className="text-center p-4 rounded-xl bg-muted/50">
                     <Moon className="w-5 h-5 mx-auto mb-2 text-primary" />
                     <p className="text-xs text-muted-foreground mb-1">Duration</p>
-                    <p className="font-semibold text-foreground text-sm">{mockBookingData.nights} nights</p>
+                    <p className="font-semibold text-foreground text-sm">{nights} {nights === 1 ? 'night' : 'nights'}</p>
                   </div>
                   <div className="text-center p-4 rounded-xl bg-muted/50">
                     <Users className="w-5 h-5 mx-auto mb-2 text-primary" />
                     <p className="text-xs text-muted-foreground mb-1">Guests</p>
                     <p className="font-semibold text-foreground text-sm">
-                      {mockBookingData.guests.adults}A, {mockBookingData.guests.children}C
+                      {adults}A{children > 0 ? `, ${children}C` : ''}
                     </p>
                   </div>
                 </div>
@@ -333,20 +384,24 @@ export default function BookingSuccess() {
                 <Separator className="my-6" />
 
                 {/* Payment Summary */}
-                <div className="flex items-center justify-between p-4 rounded-xl bg-secondary/10">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-secondary/20 flex items-center justify-center">
-                      <CreditCard className="w-5 h-5 text-secondary" />
+                {totalAmount !== null && (
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-secondary/10">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-secondary/20 flex items-center justify-center">
+                        <CreditCard className="w-5 h-5 text-secondary" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Total Paid</p>
+                        {paymentMethod && (
+                          <p className="font-semibold text-foreground">{paymentMethod}</p>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total Paid</p>
-                      <p className="font-semibold text-foreground">{mockBookingData.paymentMethod}</p>
-                    </div>
+                    <p className="text-2xl font-bold text-foreground">
+                      {hotelConfig.currencySymbol}{totalAmount.toLocaleString()}
+                    </p>
                   </div>
-                  <p className="text-2xl font-bold text-foreground">
-                    {hotelConfig.currencySymbol}{mockBookingData.totalAmount.toLocaleString()}
-                  </p>
-                </div>
+                )}
               </CardContent>
             </Card>
           </motion.div>
@@ -428,7 +483,7 @@ export default function BookingSuccess() {
       <footer className="bg-foreground text-background py-8">
         <div className="container-hotel text-center">
           <p className="text-sm text-background/60">
-            © {new Date().getFullYear()} {hotelConfig.name || 'Ocean Pearl Resort'}. All rights reserved.
+            © {new Date().getFullYear()} {hotelName}. All rights reserved.
           </p>
         </div>
       </footer>

@@ -6,6 +6,7 @@ import { hotelConfig } from '@/data/hotelData';
 import { cn } from '@/lib/utils';
 import { Hotel } from '@/models/home.models';
 import { authService, AuthService } from '@/services/auth.service';
+import { environment } from '../../../environment';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -71,6 +72,15 @@ export function Header({ hotel }: { hotel: Hotel | null }) {
     setUserName('');
     navigate('/');
   };
+
+  const getImageUrl = (imagePath: string | undefined): string | null => {
+    if (!imagePath) return null;
+    // If already a full URL, return as is
+    if (typeof imagePath === 'string' && (imagePath.startsWith('http://') || imagePath.startsWith('https://'))) {
+      return imagePath;
+    }
+    return `${environment.imageBaseUrl}${imagePath}`;
+  };
   
   return (
     <header
@@ -87,10 +97,18 @@ export function Header({ hotel }: { hotel: Hotel | null }) {
         <nav className="flex items-center justify-between">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-hero flex items-center justify-center shadow-soft group-hover:shadow-card transition-shadow">
-              <span className="text-primary-foreground font-display font-bold text-lg">
-                {selectedHotel?.hotelName.charAt(0)}
-              </span>
+            <div className="w-10 h-10 rounded-xl bg-gradient-hero flex items-center justify-center shadow-soft group-hover:shadow-card transition-shadow overflow-hidden">
+              {selectedHotel?.propertyLogo ? (
+                <img 
+                  src={getImageUrl(selectedHotel.propertyLogo) || ''} 
+                  alt={selectedHotel.hotelName}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-primary-foreground font-display font-bold text-lg">
+                  {selectedHotel?.hotelName.charAt(0)}
+                </span>
+              )}
             </div>
             <div className="hidden sm:block">
               <h1 className={cn(

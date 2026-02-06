@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -13,7 +12,6 @@ import {
   Moon,
   Calendar,
   Shield,
-  ArrowRight,
   HelpCircle,
   Clock,
   Bookmark,
@@ -25,6 +23,9 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { hotelConfig } from '@/data/hotelData';
+import { useHotels } from '@/contexts/HotelContext';
+import { useBooking } from '@/contexts/BookingContext';
+import { environment } from '../../environment';
 
 type FailureType = 'failed' | 'cancelled' | 'pending' | 'refund_in_progress';
 
@@ -72,20 +73,38 @@ const failureConfigs: Record<FailureType, FailureConfig> = {
   },
 };
 
-// Mock transaction data
-const mockTransactionData = {
-  referenceId: 'AR-982341',
-  hotelName: 'Ocean Pearl Resort',
-  location: 'Goa, India',
-  roomType: 'Deluxe Sea View',
-  checkIn: '15 Feb 2026',
-  checkOut: '18 Feb 2026',
-  nights: 3,
-  guests: { adults: 2, children: 1 },
-  attemptedAmount: 18500,
-  paymentMethod: 'UPI',
-  errorReason: 'Bank server temporarily unavailable. Please try again.',
-  transactionId: 'TXN-8923456781',
+// Helper function to format date
+const formatDate = (dateString: string | null): string => {
+  if (!dateString) return 'N/A';
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+  } catch {
+    return dateString;
+  }
+};
+
+// Helper function to calculate nights
+const calculateNights = (checkIn: string | null, checkOut: string | null): number => {
+  if (!checkIn || !checkOut) return 0;
+  try {
+    const checkInDate = new Date(checkIn);
+    const checkOutDate = new Date(checkOut);
+    const diffTime = checkOutDate.getTime() - checkInDate.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 ? diffDays : 0;
+  } catch {
+    return 0;
+  }
+};
+
+// Helper function to get image URL
+const getImageUrl = (imagePath: string | undefined): string | null => {
+  if (!imagePath) return null;
+  if (typeof imagePath === 'string' && (imagePath.startsWith('http://') || imagePath.startsWith('https://'))) {
+    return imagePath;
+  }
+  return `${environment.imageBaseUrl}${imagePath}`;
 };
 
 function ErrorAnimation({ type }: { type: FailureType }) {
@@ -137,14 +156,16 @@ function ErrorAnimation({ type }: { type: FailureType }) {
   );
 }
 
-function WhatsAppSupport({ bookingRef }: { bookingRef: string }) {
+function WhatsAppSupport({ bookingRef, whatsappNumber }: { bookingRef: string; whatsappNumber?: string }) {
   const prefilledMessage = encodeURIComponent(
     `My payment failed for booking ${bookingRef}. Please help.`
   );
+  
+  const number = whatsappNumber || hotelConfig.whatsappNumber;
 
   return (
     <motion.a
-      href={`https://wa.me/${hotelConfig.whatsappNumber.replace(/\D/g, '')}?text=${prefilledMessage}`}
+      href={`https://wa.me/${number.replace(/\D/g, '')}?text=${prefilledMessage}`}
       target="_blank"
       rel="noopener noreferrer"
       className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-elevated transition-transform duration-200 hover:scale-110"
@@ -162,8 +183,30 @@ function WhatsAppSupport({ bookingRef }: { bookingRef: string }) {
 
 export default function PaymentFailed() {
   const [searchParams] = useSearchParams();
+  const { selectedHotel } = useHotels();
+  const { checkIn, checkOut, guests } = useBooking();
+  
   const type = (searchParams.get('type') as FailureType) || 'failed';
-  const bookingRef = searchParams.get('ref') || mockTransactionData.referenceId;
+  const bookingRef = searchParams.get('ref') || 'N/A';
+  
+  // Get transaction data from URL params
+  const roomType = searchParams.get('roomType') || '';
+  const attemptedAmount = searchParams.get('amount') ? parseFloat(searchParams.get('amount')!) : null;
+  const paymentMethod = searchParams.get('paymentMethod') || '';
+  const errorReason = searchParams.get('errorReason') || 'Payment processing failed. Please try again.';
+  const transactionId = searchParams.get('transactionId') || '';
+  const adults = searchParams.get('adults') ? parseInt(searchParams.get('adults')!) : guests;
+  const children = searchParams.get('children') ? parseInt(searchParams.get('children')!) : 0;
+  
+  // Format dates
+  const checkInFormatted = formatDate(checkIn);
+  const checkOutFormatted = formatDate(checkOut);
+  const nights = calculateNights(checkIn, checkOut);
+  
+  // Get hotel data
+  const hotelName = selectedHotel?.hotelName || hotelConfig.name || 'Hotel';
+  const location = selectedHotel?.locationName || selectedHotel?.address || '';
+  const hotelImage = selectedHotel?.websiteData?.coverImage || selectedHotel?.coverImages || '';
   
   const config = failureConfigs[type] || failureConfigs.failed;
 
@@ -174,14 +217,22 @@ export default function PaymentFailed() {
         <div className="container-hotel">
           <div className="flex items-center justify-between">
             <Link to="/" className="flex items-center gap-3 group">
-              <div className="w-10 h-10 rounded-xl bg-gradient-hero flex items-center justify-center shadow-soft">
-                <span className="text-primary-foreground font-display font-bold text-lg">
-                  {hotelConfig.name?.charAt(0) || 'O'}
-                </span>
+              <div className="w-10 h-10 rounded-xl bg-gradient-hero flex items-center justify-center shadow-soft overflow-hidden">
+                {selectedHotel?.propertyLogo ? (
+                  <img 
+                    src={getImageUrl(selectedHotel.propertyLogo) || ''} 
+                    alt={hotelName}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-primary-foreground font-display font-bold text-lg">
+                    {hotelName.charAt(0)}
+                  </span>
+                )}
               </div>
               <div className="hidden sm:block">
                 <h1 className="font-display font-semibold text-lg text-foreground">
-                  {hotelConfig.name || 'Ocean Pearl Resort'}
+                  {hotelName}
                 </h1>
               </div>
             </Link>
@@ -266,18 +317,22 @@ export default function PaymentFailed() {
                 <div className="flex items-start gap-4 mb-6">
                   <div className="w-20 h-20 rounded-xl bg-muted overflow-hidden flex-shrink-0">
                     <img 
-                      src="https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=200" 
-                      alt={mockTransactionData.hotelName}
+                      src={getImageUrl(hotelImage) || "https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=200"} 
+                      alt={hotelName}
                       className="w-full h-full object-cover"
                     />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-lg text-foreground">{mockTransactionData.hotelName}</h3>
-                    <p className="text-muted-foreground flex items-center gap-1.5 mt-1">
-                      <MapPin className="w-4 h-4" />
-                      {mockTransactionData.location}
-                    </p>
-                    <p className="text-primary font-medium mt-1">{mockTransactionData.roomType}</p>
+                    <h3 className="font-semibold text-lg text-foreground">{hotelName}</h3>
+                    {location && (
+                      <p className="text-muted-foreground flex items-center gap-1.5 mt-1">
+                        <MapPin className="w-4 h-4" />
+                        {location}
+                      </p>
+                    )}
+                    {roomType && (
+                      <p className="text-primary font-medium mt-1">{roomType}</p>
+                    )}
                   </div>
                 </div>
 
@@ -288,23 +343,23 @@ export default function PaymentFailed() {
                   <div className="text-center p-4 rounded-xl bg-muted/50">
                     <Calendar className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
                     <p className="text-xs text-muted-foreground mb-1">Check-in</p>
-                    <p className="font-semibold text-foreground text-sm">{mockTransactionData.checkIn}</p>
+                    <p className="font-semibold text-foreground text-sm">{checkInFormatted}</p>
                   </div>
                   <div className="text-center p-4 rounded-xl bg-muted/50">
                     <Calendar className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
                     <p className="text-xs text-muted-foreground mb-1">Check-out</p>
-                    <p className="font-semibold text-foreground text-sm">{mockTransactionData.checkOut}</p>
+                    <p className="font-semibold text-foreground text-sm">{checkOutFormatted}</p>
                   </div>
                   <div className="text-center p-4 rounded-xl bg-muted/50">
                     <Moon className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
                     <p className="text-xs text-muted-foreground mb-1">Duration</p>
-                    <p className="font-semibold text-foreground text-sm">{mockTransactionData.nights} nights</p>
+                    <p className="font-semibold text-foreground text-sm">{nights} {nights === 1 ? 'night' : 'nights'}</p>
                   </div>
                   <div className="text-center p-4 rounded-xl bg-muted/50">
                     <Users className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
                     <p className="text-xs text-muted-foreground mb-1">Guests</p>
                     <p className="font-semibold text-foreground text-sm">
-                      {mockTransactionData.guests.adults}A, {mockTransactionData.guests.children}C
+                      {adults}A{children > 0 ? `, ${children}C` : ''}
                     </p>
                   </div>
                 </div>
@@ -313,20 +368,24 @@ export default function PaymentFailed() {
 
                 {/* Payment Attempt Info */}
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 rounded-xl bg-destructive/5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
-                        <CreditCard className="w-5 h-5 text-destructive" />
+                  {attemptedAmount !== null && (
+                    <div className="flex items-center justify-between p-4 rounded-xl bg-destructive/5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
+                          <CreditCard className="w-5 h-5 text-destructive" />
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Amount Attempted</p>
+                          {paymentMethod && (
+                            <p className="font-semibold text-foreground">{paymentMethod}</p>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Amount Attempted</p>
-                        <p className="font-semibold text-foreground">{mockTransactionData.paymentMethod}</p>
-                      </div>
+                      <p className="text-2xl font-bold text-foreground">
+                        {hotelConfig.currencySymbol}{attemptedAmount.toLocaleString()}
+                      </p>
                     </div>
-                    <p className="text-2xl font-bold text-foreground">
-                      {hotelConfig.currencySymbol}{mockTransactionData.attemptedAmount.toLocaleString()}
-                    </p>
-                  </div>
+                  )}
 
                   {/* Error Reason */}
                   <div className="p-4 rounded-xl bg-muted/50 border border-border">
@@ -334,10 +393,12 @@ export default function PaymentFailed() {
                       <AlertTriangle className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
                       <div>
                         <p className="text-sm font-medium text-foreground mb-1">Error Details</p>
-                        <p className="text-sm text-muted-foreground">{mockTransactionData.errorReason}</p>
-                        <p className="text-xs text-muted-foreground mt-2">
-                          Transaction ID: {mockTransactionData.transactionId}
-                        </p>
+                        <p className="text-sm text-muted-foreground">{errorReason}</p>
+                        {transactionId && (
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Transaction ID: {transactionId}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -354,7 +415,7 @@ export default function PaymentFailed() {
             transition={{ delay: 0.9 }}
           >
             {/* Primary Actions */}
-            {config.showRetry && (
+            {/* {config.showRetry && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Button size="lg" className="w-full gap-2">
                   <RefreshCw className="w-4 h-4" />
@@ -365,7 +426,7 @@ export default function PaymentFailed() {
                   Try Another Method
                 </Button>
               </div>
-            )}
+            )} */}
 
             {/* Secondary Actions */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -419,13 +480,13 @@ export default function PaymentFailed() {
       <footer className="bg-foreground text-background py-8">
         <div className="container-hotel text-center">
           <p className="text-sm text-background/60">
-            © {new Date().getFullYear()} {hotelConfig.name || 'Ocean Pearl Resort'}. All rights reserved.
+            © {new Date().getFullYear()} {hotelName}. All rights reserved.
           </p>
         </div>
       </footer>
       
       {/* Floating WhatsApp Support */}
-      <WhatsAppSupport bookingRef={bookingRef} />
+      <WhatsAppSupport bookingRef={bookingRef} whatsappNumber={selectedHotel?.whatsappNumber} />
     </div>
   );
 }
