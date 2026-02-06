@@ -319,8 +319,8 @@ export default function BookingSuccess() {
               <div className="bg-gradient-to-r from-primary to-primary-dark p-6 text-primary-foreground">
                 <div className="flex items-center justify-between flex-wrap gap-4">
                   <div>
-                    <p className="text-sm opacity-80 mb-1">Booking Reference</p>
-                    <CopyableReference reference={bookingRef} />
+                    {/* <p className="text-sm opacity-80 mb-1">Booking Reference</p>
+                    <CopyableReference reference={bookingRef} /> */}
                   </div>
                   <Badge className="bg-secondary text-secondary-foreground border-0 px-4 py-1.5">
                     <CheckCircle className="w-4 h-4 mr-1.5" />
@@ -414,7 +414,7 @@ export default function BookingSuccess() {
             transition={{ delay: 1.2 }}
           >
             {/* Primary Actions */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Button size="lg" className="w-full gap-2" asChild>
                 <Link to={`/bookings/${bookingRef}`}>
                   View Booking Details
@@ -425,10 +425,10 @@ export default function BookingSuccess() {
                 <Download className="w-4 h-4" />
                 Download Invoice
               </Button>
-            </div>
+            </div> */}
 
             {/* Secondary Actions */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {/* <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <Button variant="ghost" size="sm" className="w-full gap-2">
                 <Calendar className="w-4 h-4" />
                 <span className="hidden sm:inline">Add to</span> Calendar
@@ -447,11 +447,11 @@ export default function BookingSuccess() {
                   Browse More
                 </Link>
               </Button>
-            </div>
+            </div> */}
           </motion.div>
 
           {/* Trust Elements */}
-          <motion.div 
+          {/* <motion.div 
             className="mt-10 p-6 rounded-2xl bg-muted/50 space-y-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -475,7 +475,7 @@ export default function BookingSuccess() {
                 <ExternalLink className="w-3 h-3" />
               </Link>
             </div>
-          </motion.div>
+          </motion.div> */}
         </div>
       </main>
 

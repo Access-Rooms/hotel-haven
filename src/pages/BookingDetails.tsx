@@ -438,7 +438,7 @@ export default function BookingDetails() {
             </Card>
 
             {/* Instructions */}
-            {(hotelData?.checkInTime || hotelData?.checkOutTime) && (
+            {/* {(hotelData?.checkInTime || hotelData?.checkOutTime) && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -465,7 +465,7 @@ export default function BookingDetails() {
                   )}
                 </CardContent>
               </Card>
-            )}
+            )} */}
 
             {/* Review Section */}
             {mappedStatus === 'completed' && (
@@ -551,7 +551,7 @@ export default function BookingDetails() {
             </Card>
 
             {/* Actions */}
-            <Card>
+            {/* <Card>
               <CardHeader>
                 <CardTitle>Quick Actions</CardTitle>
               </CardHeader>
@@ -591,7 +591,7 @@ export default function BookingDetails() {
                   </Button>
                 )}
               </CardContent>
-            </Card>
+            </Card> */}
 
             {/* Cancellation Policy */}
             <Card>

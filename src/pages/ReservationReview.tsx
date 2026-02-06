@@ -89,6 +89,11 @@ interface GuestInfo {
   phoneCountryCode: string;
   idType: string;
   idNumber: string;
+  address: string;
+  city: string;
+  state: string;
+  country: string;
+  pincode: string;
   specialRequests: string;
 }
 
@@ -131,6 +136,11 @@ export default function ReservationReview() {
     phoneCountryCode: '+91',
     idType: '',
     idNumber: '',
+    address: '',
+    city: '',
+    state: '',
+    country: 'India',
+    pincode: '',
     specialRequests: '',
   });
   const [additionalGuests, setAdditionalGuests] = useState<AdditionalGuest[]>([]);
@@ -179,6 +189,7 @@ export default function ReservationReview() {
           phone: user.phoneNumber || '',
           phoneCountryCode: user.whatsappCountryCode || '+91',
           // idType and idNumber are not in user model, so keep them as is
+          // address fields are not in user model, so keep them as is
           // specialRequests is preserved
         }));
       }
@@ -191,6 +202,11 @@ export default function ReservationReview() {
         phoneCountryCode: '+91',
         idType: '',
         idNumber: '',
+        address: '',
+        city: '',
+        state: '',
+        country: 'India',
+        pincode: '',
         specialRequests: prev.specialRequests, // Preserve special requests
       }));
     }
@@ -302,9 +318,12 @@ export default function ReservationReview() {
 
   // Calculate form progress
   useEffect(() => {
-    const requiredFields = ['fullName', 'email', 'phone'];
+    const requiredFields = ['fullName', 'email', 'phone', 'address', 'city', 'state', 'country', 'pincode'];
     const filledFields = requiredFields.filter(
-      (field) => guestInfo[field as keyof GuestInfo]
+      (field) => {
+        const value = guestInfo[field as keyof GuestInfo];
+        return typeof value === 'string' && value.trim() !== '';
+      }
     ).length;
     const progress = (filledFields / requiredFields.length) * 100;
     setFormProgress(progress);
@@ -576,7 +595,13 @@ export default function ReservationReview() {
       guestInfo.email.trim() !== '' &&
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestInfo.email) &&
       guestInfo.phone.trim() !== '' &&
-      guestInfo.phone.length >= 10
+      guestInfo.phone.length >= 10 &&
+      guestInfo.address.trim() !== '' &&
+      guestInfo.city.trim() !== '' &&
+      guestInfo.state.trim() !== '' &&
+      guestInfo.country.trim() !== '' &&
+      guestInfo.pincode.trim() !== '' &&
+      guestInfo.pincode.length >= 4
     );
   }, [guestInfo]);
 
@@ -598,6 +623,28 @@ export default function ReservationReview() {
       newErrors.phone = 'Phone number is required';
     } else if (guestInfo.phone.length < 10) {
       newErrors.phone = 'Please enter a valid 10-digit phone number';
+    }
+
+    if (!guestInfo.address.trim()) {
+      newErrors.address = 'Address is required';
+    }
+
+    if (!guestInfo.city.trim()) {
+      newErrors.city = 'City is required';
+    }
+
+    if (!guestInfo.state.trim()) {
+      newErrors.state = 'State is required';
+    }
+
+    if (!guestInfo.country.trim()) {
+      newErrors.country = 'Country is required';
+    }
+
+    if (!guestInfo.pincode.trim()) {
+      newErrors.pincode = 'Pincode is required';
+    } else if (guestInfo.pincode.length < 4) {
+      newErrors.pincode = 'Please enter a valid pincode';
     }
 
     // ID Type and ID Number are optional fields - no validation required
@@ -869,11 +916,11 @@ export default function ReservationReview() {
           guestName: guestInfo.fullName,
           email: guestInfo.email,
           phone: `${guestInfo.phoneCountryCode}${guestInfo.phone}`,
-          address: selectedHotel?.address || '',
-          city: selectedHotel?.townName || selectedHotel?.locationName || '',
-          state: selectedHotel?.state || room?.state || '',
-          country: selectedHotel?.country || room?.country || 'India',
-          pincode: '',
+          address: guestInfo.address,
+          city: guestInfo.city,
+          state: guestInfo.state,
+          country: guestInfo.country,
+          pincode: guestInfo.pincode,
         },
         roomRequirements: [
           {
@@ -1177,6 +1224,115 @@ export default function ReservationReview() {
                           onChange={(e) => handleInputChange('idNumber', e.target.value)}
                           placeholder="Enter ID number"
                         />
+                      </div>
+                    </div>
+
+                    {/* Address Fields */}
+                    <div className="pt-4 border-t space-y-4">
+                      <h3 className="text-sm font-semibold text-foreground">Address Information</h3>
+                      
+                      <div className="sm:col-span-2">
+                        <Label htmlFor="address">
+                          Address <span className="text-destructive">*</span>
+                        </Label>
+                        <Textarea
+                          id="address"
+                          value={guestInfo.address}
+                          onChange={(e) => handleInputChange('address', e.target.value)}
+                          placeholder="Enter your complete address"
+                          rows={3}
+                          className={cn('resize-none', errors.address && 'border-destructive')}
+                        />
+                        {errors.address && (
+                          <p className="text-sm text-destructive mt-1 flex items-center gap-1">
+                            <AlertCircle size={14} />
+                            {errors.address}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="city">
+                            City <span className="text-destructive">*</span>
+                          </Label>
+                          <Input
+                            id="city"
+                            value={guestInfo.city}
+                            onChange={(e) => handleInputChange('city', e.target.value)}
+                            placeholder="Enter city"
+                            className={cn(errors.city && 'border-destructive')}
+                          />
+                          {errors.city && (
+                            <p className="text-sm text-destructive mt-1 flex items-center gap-1">
+                              <AlertCircle size={14} />
+                              {errors.city}
+                            </p>
+                          )}
+                        </div>
+
+                        <div>
+                          <Label htmlFor="state">
+                            State <span className="text-destructive">*</span>
+                          </Label>
+                          <Input
+                            id="state"
+                            value={guestInfo.state}
+                            onChange={(e) => handleInputChange('state', e.target.value)}
+                            placeholder="Enter state"
+                            className={cn(errors.state && 'border-destructive')}
+                          />
+                          {errors.state && (
+                            <p className="text-sm text-destructive mt-1 flex items-center gap-1">
+                              <AlertCircle size={14} />
+                              {errors.state}
+                            </p>
+                          )}
+                        </div>
+
+                        <div>
+                          <Label htmlFor="country">
+                            Country <span className="text-destructive">*</span>
+                          </Label>
+                          <Input
+                            id="country"
+                            value={guestInfo.country}
+                            onChange={(e) => handleInputChange('country', e.target.value)}
+                            placeholder="Enter country"
+                            className={cn(errors.country && 'border-destructive')}
+                          />
+                          {errors.country && (
+                            <p className="text-sm text-destructive mt-1 flex items-center gap-1">
+                              <AlertCircle size={14} />
+                              {errors.country}
+                            </p>
+                          )}
+                        </div>
+
+                        <div>
+                          <Label htmlFor="pincode">
+                            Pincode <span className="text-destructive">*</span>
+                          </Label>
+                          <Input
+                            id="pincode"
+                            value={guestInfo.pincode}
+                            onChange={(e) => {
+                              const value = e.target.value.replace(/\D/g, '');
+                              if (value.length <= 10) {
+                                handleInputChange('pincode', value);
+                              }
+                            }}
+                            placeholder="Enter pincode"
+                            maxLength={10}
+                            className={cn(errors.pincode && 'border-destructive')}
+                          />
+                          {errors.pincode && (
+                            <p className="text-sm text-destructive mt-1 flex items-center gap-1">
+                              <AlertCircle size={14} />
+                              {errors.pincode}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </CardContent>
