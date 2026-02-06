@@ -65,9 +65,9 @@ export function HeroSection({ hotels }: HeroSectionProps) {
       {/* Content */}
       <div className="relative z-10 container-hotel text-center pt-20 pb-32">
         <div className="max-w-4xl mx-auto space-y-6 animate-fade-up">
-          <p className="text-hotel-secondary font-medium tracking-wider uppercase text-sm">
+          {/* <p className="text-hotel-secondary font-medium tracking-wider uppercase text-sm">
             Welcome to {localSelectedHotel?.hotelName}
-          </p>
+          </p> */}
           <h1 className="font-display text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-card leading-tight">
             {localSelectedHotel?.hotelName}
           </h1>

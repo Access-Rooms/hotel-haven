@@ -73,7 +73,7 @@ import {
 } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { roomService } from '@/services/room.service';
-import { RoomDetailsResponse, GetRoomByIdPayload } from '@/models/room.models';
+import { RoomDetailsResponse, GetRoomByIdPayload, RoomAvailabilityResponse, RoomAvailabilityDay } from '@/models/room.models';
 import { environment } from '../../environment';
 import { useHotels } from '@/contexts/HotelContext';
 import { useBooking } from '@/contexts/BookingContext';
@@ -138,21 +138,34 @@ export default function ReservationReview() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [promoCode, setPromoCode] = useState<string>('');
   const [promoDiscount, setPromoDiscount] = useState<number>(0);
-  const [showDateSheet, setShowDateSheet] = useState(false);
+  const [showDateDialog, setShowDateDialog] = useState(false);
   const [showGuestSheet, setShowGuestSheet] = useState(false);
   const [tempCheckIn, setTempCheckIn] = useState(checkIn);
   const [tempCheckOut, setTempCheckOut] = useState(checkOut);
   const [tempAdults, setTempAdults] = useState(2);
   const [tempChildren, setTempChildren] = useState(0);
+  const [tempAdultsInput, setTempAdultsInput] = useState('2');
+  const [tempChildrenInput, setTempChildrenInput] = useState('0');
   const [roomCount, setRoomCount] = useState(1);
   const [formProgress, setFormProgress] = useState(0);
   const [bookingFor, setBookingFor] = useState<'myself' | 'someone-else'>('myself');
+  const [roomAvailability, setRoomAvailability] = useState<RoomAvailabilityDay[]>([]);
+  const [isLoadingAvailability, setIsLoadingAvailability] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
 
   // Sync temp dates when checkIn/checkOut change
   useEffect(() => {
     setTempCheckIn(checkIn);
     setTempCheckOut(checkOut);
   }, [checkIn, checkOut]);
+
+  // Sync temp guest inputs when dialog opens
+  useEffect(() => {
+    if (showGuestSheet) {
+      setTempAdultsInput(tempAdults.toString());
+      setTempChildrenInput(tempChildren.toString());
+    }
+  }, [showGuestSheet, tempAdults, tempChildren]);
 
   // Prefill form when booking for myself
   useEffect(() => {
@@ -219,6 +232,72 @@ export default function ReservationReview() {
     fetchRoomDetails();
     // Use checkIn and checkOut instead of dateFilter to avoid infinite loops
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId, hotelIdFromQuery, selectedHotel?._id, checkIn, checkOut]);
+
+  // Fetch room availability when dates change
+  useEffect(() => {
+    const fetchRoomAvailability = async () => {
+      if (!roomId || !checkIn || !checkOut) {
+        setRoomAvailability([]);
+        return;
+      }
+
+      const hotelId = hotelIdFromQuery || selectedHotel?._id;
+      if (!hotelId) {
+        setRoomAvailability([]);
+        return;
+      }
+
+      try {
+        setIsLoadingAvailability(true);
+        setAvailabilityError(null);
+
+        // Get all months needed for the date range
+        const checkInDate = new Date(checkIn);
+        const checkOutDate = new Date(checkOut);
+        const monthsToFetch = new Set<string>();
+
+        // Add all months between check-in and check-out
+        const currentDate = new Date(checkInDate);
+        while (currentDate <= checkOutDate) {
+          const year = currentDate.getFullYear();
+          const month = currentDate.getMonth() + 1; // getMonth() returns 0-11
+          monthsToFetch.add(`${year}-${month}`);
+          currentDate.setMonth(currentDate.getMonth() + 1);
+        }
+
+        // Fetch availability for each month
+        const availabilityPromises = Array.from(monthsToFetch).map(async (monthKey) => {
+          const [year, month] = monthKey.split('-').map(Number);
+          const response = await roomService.getRoomAvailability({
+            hotelId,
+            roomTypeId: roomId,
+            year,
+            month,
+          });
+          return response.data?.calendar?.days || [];
+        });
+
+        const allDays = await Promise.all(availabilityPromises);
+        const flattenedDays = allDays.flat();
+
+        // Filter days within the date range
+        const filteredDays = flattenedDays.filter((day) => {
+          const dayDate = new Date(day.date);
+          return dayDate >= checkInDate && dayDate < checkOutDate;
+        });
+
+        setRoomAvailability(filteredDays);
+      } catch (err) {
+        console.error('Error fetching room availability:', err);
+        setAvailabilityError('Failed to load room availability');
+        setRoomAvailability([]);
+      } finally {
+        setIsLoadingAvailability(false);
+      }
+    };
+
+    fetchRoomAvailability();
   }, [roomId, hotelIdFromQuery, selectedHotel?._id, checkIn, checkOut]);
 
   // Calculate form progress
@@ -452,6 +531,21 @@ export default function ReservationReview() {
     };
   }, [selectedPricing, numberOfNights, tempAdults, tempChildren, promoDiscount, room, roomCount, selectedHotel, additionalGuests]);
 
+  // Calculate minimum available rooms across the date range
+  const minAvailableRooms = useMemo(() => {
+    if (roomAvailability.length === 0) return null;
+    
+    // Find the minimum available rooms across all days in the range
+    const minAvailable = Math.min(...roomAvailability.map(day => day.available));
+    return minAvailable;
+  }, [roomAvailability]);
+
+  // Check if selected room count exceeds availability
+  const isRoomCountValid = useMemo(() => {
+    if (minAvailableRooms === null) return true; // If availability not loaded, allow
+    return roomCount <= minAvailableRooms;
+  }, [roomCount, minAvailableRooms]);
+
   // Phone number formatting
   const formatPhoneNumber = (value: string) => {
     const cleaned = value.replace(/\D/g, '');
@@ -608,25 +702,70 @@ export default function ReservationReview() {
     }
   };
 
-  // Save dates from sheet
+  // Save dates from dialog
   const saveDates = () => {
     setCheckIn(tempCheckIn);
     setCheckOut(tempCheckOut);
-    setShowDateSheet(false);
+    setShowDateDialog(false);
   };
 
   // Save guest count from dialog and auto-adjust room count
   const saveGuestCount = () => {
-    setGuests(tempAdults + tempChildren);
+    // Parse and validate inputs
+    const adults = Math.max(1, parseInt(tempAdultsInput) || 1);
+    const children = Math.max(0, parseInt(tempChildrenInput) || 0);
+    
+    setTempAdults(adults);
+    setTempChildren(children);
+    setGuests(adults + children);
     
     // Automatically calculate and update room count based on occupancy
     if (room?.totalOccupency) {
-      const totalGuests = tempAdults + tempChildren;
+      const totalGuests = adults + children;
       const requiredRooms = Math.max(1, Math.ceil(totalGuests / room.totalOccupency));
       setRoomCount(requiredRooms);
     }
     
     setShowGuestSheet(false);
+  };
+
+  // Handle adults input change
+  const handleAdultsInputChange = (value: string) => {
+    // Allow empty string or valid numbers
+    if (value === '' || /^\d*$/.test(value)) {
+      setTempAdultsInput(value);
+      const numValue = parseInt(value) || 0;
+      if (numValue >= 1) {
+        setTempAdults(numValue);
+      }
+    }
+  };
+
+  // Handle children input change
+  const handleChildrenInputChange = (value: string) => {
+    // Allow empty string or valid numbers
+    if (value === '' || /^\d*$/.test(value)) {
+      setTempChildrenInput(value);
+      const numValue = parseInt(value) || 0;
+      if (numValue >= 0) {
+        setTempChildren(numValue);
+      }
+    }
+  };
+
+  // Handle blur - validate and set defaults if empty
+  const handleAdultsBlur = () => {
+    if (tempAdultsInput === '' || parseInt(tempAdultsInput) < 1) {
+      setTempAdultsInput('1');
+      setTempAdults(1);
+    }
+  };
+
+  const handleChildrenBlur = () => {
+    if (tempChildrenInput === '' || parseInt(tempChildrenInput) < 0) {
+      setTempChildrenInput('0');
+      setTempChildren(0);
+    }
   };
 
   // Handle form submission
@@ -1319,20 +1458,20 @@ export default function ReservationReview() {
                               : 'Select date'}
                           </p>
                         </div>
-                        <Sheet open={showDateSheet} onOpenChange={setShowDateSheet}>
-                          <SheetTrigger asChild>
+                        <Dialog open={showDateDialog} onOpenChange={setShowDateDialog}>
+                          <DialogTrigger asChild>
                             <Button variant="ghost" size="icon" className="shrink-0">
                               <Edit2 size={16} />
                             </Button>
-                          </SheetTrigger>
-                          <SheetContent side="bottom" className="h-[400px]">
-                            <SheetHeader>
-                              <SheetTitle>Modify Dates</SheetTitle>
-                              <SheetDescription>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Modify Dates</DialogTitle>
+                              <DialogDescription>
                                 Update your check-in and check-out dates
-                              </SheetDescription>
-                            </SheetHeader>
-                            <div className="space-y-4 mt-6">
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-4 mt-4">
                               <div>
                                 <Label>Check-in Date</Label>
                                 <Input
@@ -1351,12 +1490,21 @@ export default function ReservationReview() {
                                   min={tempCheckIn || new Date().toISOString().split('T')[0]}
                                 />
                               </div>
-                              <Button onClick={saveDates} className="w-full">
-                                Save Changes
-                              </Button>
+                              <div className="flex gap-2 pt-2">
+                                <Button 
+                                  variant="outline" 
+                                  onClick={() => setShowDateDialog(false)} 
+                                  className="flex-1"
+                                >
+                                  Cancel
+                                </Button>
+                                <Button onClick={saveDates} className="flex-1">
+                                  Save Changes
+                                </Button>
+                              </div>
                             </div>
-                          </SheetContent>
-                        </Sheet>
+                          </DialogContent>
+                        </Dialog>
                       </div>
 
                       <div className="flex items-center justify-between">
@@ -1415,10 +1563,13 @@ export default function ReservationReview() {
                               <div>
                                 <Label>Adults</Label>
                                 <Input
-                                  type="number"
-                                  value={tempAdults}
-                                  onChange={(e) => setTempAdults(parseInt(e.target.value) || 1)}
-                                  min={1}
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={tempAdultsInput}
+                                  onChange={(e) => handleAdultsInputChange(e.target.value)}
+                                  onBlur={handleAdultsBlur}
+                                  placeholder="Enter number of adults"
+                                  onFocus={(e) => e.target.select()}
                                 />
                                 <p className="text-xs text-muted-foreground mt-1">
                                   Add as many adults as needed. Room count will adjust automatically.
@@ -1427,37 +1578,42 @@ export default function ReservationReview() {
                               <div>
                                 <Label>Children</Label>
                                 <Input
-                                  type="number"
-                                  value={tempChildren}
-                                  onChange={(e) => setTempChildren(parseInt(e.target.value) || 0)}
-                                  min={0}
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={tempChildrenInput}
+                                  onChange={(e) => handleChildrenInputChange(e.target.value)}
+                                  onBlur={handleChildrenBlur}
+                                  placeholder="Enter number of children"
+                                  onFocus={(e) => e.target.select()}
                                 />
                                 <p className="text-xs text-muted-foreground mt-1">
                                   Add as many children as needed. Room count will adjust automatically.
                                 </p>
                               </div>
                               {room?.totalOccupency && (() => {
-                                // Calculate extra persons for display in dialog
+                                // Calculate extra persons for display in dialog using current input values
+                                const currentAdults = parseInt(tempAdultsInput) || 1;
+                                const currentChildren = parseInt(tempChildrenInput) || 0;
                                 const minAdultsPerRoom = room?.minAdults || 2;
                                 const totalOccupencyPerRoom = room?.totalOccupency || minAdultsPerRoom;
-                                const currentRoomCount = Math.max(1, Math.ceil((tempAdults + tempChildren) / totalOccupencyPerRoom));
+                                const currentRoomCount = Math.max(1, Math.ceil((currentAdults + currentChildren) / totalOccupencyPerRoom));
                                 const baseOccupancyCovered = currentRoomCount * minAdultsPerRoom;
-                                const totalGuests = tempAdults + tempChildren;
+                                const totalGuests = currentAdults + currentChildren;
                                 const validTotalGuests = Math.min(totalGuests, currentRoomCount * totalOccupencyPerRoom);
                                 const extraGuestsCount = Math.max(0, validTotalGuests - baseOccupancyCovered);
                                 
                                 // Distribute extra guests
-                                const baseAdultsCovered = Math.min(tempAdults, baseOccupancyCovered);
+                                const baseAdultsCovered = Math.min(currentAdults, baseOccupancyCovered);
                                 const remainingBaseCapacity = baseOccupancyCovered - baseAdultsCovered;
-                                const baseChildrenCovered = Math.min(tempChildren, remainingBaseCapacity);
-                                const extraAdultsCount = Math.max(0, tempAdults - baseAdultsCovered);
-                                const extraChildrenCount = Math.max(0, tempChildren - baseChildrenCovered);
+                                const baseChildrenCovered = Math.min(currentChildren, remainingBaseCapacity);
+                                const extraAdultsCount = Math.max(0, currentAdults - baseAdultsCovered);
+                                const extraChildrenCount = Math.max(0, currentChildren - baseChildrenCovered);
                                 
                                 return (
                                   <div className="p-3 bg-muted/50 rounded-lg space-y-2">
                                     <div>
                                       <p className="text-xs text-muted-foreground mb-1">
-                                        Current selection: {tempAdults + tempChildren} {tempAdults + tempChildren === 1 ? 'guest' : 'guests'} ({tempAdults} {tempAdults === 1 ? 'adult' : 'adults'}{tempChildren > 0 && `, ${tempChildren} ${tempChildren === 1 ? 'child' : 'children'}`})
+                                        Current selection: {currentAdults + currentChildren} {currentAdults + currentChildren === 1 ? 'guest' : 'guests'} ({currentAdults} {currentAdults === 1 ? 'adult' : 'adults'}{currentChildren > 0 && `, ${currentChildren} ${currentChildren === 1 ? 'child' : 'children'}`})
                                       </p>
                                       <p className="text-xs font-medium text-foreground">
                                         Required rooms: {currentRoomCount} {currentRoomCount === 1 ? 'room' : 'rooms'} (Max occupancy: {totalOccupencyPerRoom} per room)
@@ -1517,7 +1673,26 @@ export default function ReservationReview() {
                                 (Min {calculateRequiredRoomCount} required)
                               </span>
                             )}
+                            {!isRoomCountValid && minAvailableRooms !== null && (
+                              <span className="text-xs text-destructive ml-2 block mt-1">
+                                Only {minAvailableRooms} {minAvailableRooms === 1 ? 'room' : 'rooms'} available
+                              </span>
+                            )}
                           </p>
+                          {isLoadingAvailability && (
+                            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                              <Loader2 size={12} className="animate-spin" />
+                              Checking availability...
+                            </p>
+                          )}
+                          {!isLoadingAvailability && minAvailableRooms !== null && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {minAvailableRooms} {minAvailableRooms === 1 ? 'room' : 'rooms'} available for selected dates
+                            </p>
+                          )}
+                          {availabilityError && (
+                            <p className="text-xs text-destructive mt-1">{availabilityError}</p>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           <Button
@@ -1535,7 +1710,10 @@ export default function ReservationReview() {
                             size="icon"
                             className="h-8 w-8"
                             onClick={() => setRoomCount(roomCount + 1)}
-                            disabled={room?.totalRooms ? roomCount >= room.totalRooms : false}
+                            disabled={
+                              (room?.totalRooms ? roomCount >= room.totalRooms : false) ||
+                              (minAvailableRooms !== null ? roomCount >= minAvailableRooms : false)
+                            }
                           >
                             <Plus size={14} />
                           </Button>
@@ -1738,12 +1916,20 @@ export default function ReservationReview() {
                       </p>
                     </div>
                   )}
+                  {!isRoomCountValid && minAvailableRooms !== null && (
+                    <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                      <p className="text-sm text-destructive flex items-center gap-2">
+                        <AlertCircle size={16} />
+                        Only {minAvailableRooms} {minAvailableRooms === 1 ? 'room' : 'rooms'} {minAvailableRooms === 1 ? 'is' : 'are'} available for the selected dates. Please reduce the number of rooms.
+                      </p>
+                    </div>
+                  )}
                   <Button
                     variant="booking"
                     size="xl"
                     className="w-full"
                     onClick={handleSubmit}
-                    disabled={isSubmitting || !isFormValid}
+                    disabled={isSubmitting || !isFormValid || !isRoomCountValid}
                   >
                     {isSubmitting ? (
                       <>
@@ -1838,7 +2024,7 @@ export default function ReservationReview() {
               variant="booking"
               size="lg"
               onClick={handleSubmit}
-              disabled={isSubmitting || !isFormValid}
+              disabled={isSubmitting || !isFormValid || !isRoomCountValid}
               className="flex-1 max-w-[200px]"
             >
               {isSubmitting ? (

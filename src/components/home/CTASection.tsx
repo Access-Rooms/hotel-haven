@@ -54,9 +54,9 @@ export function CTASection({ hotel }: { hotel: Hotel | null }) {
             </div>
 
             <p className="mt-8 text-card/70 text-sm">
-              Or call us directly at{' '}
-              <a href={`tel:${selectedHotel?.contactDetails?.phoneNumber[0]?.number || hotelConfig.phone}`} className="text-card underline hover:no-underline">
-                {hotelConfig.phone}
+              Or call us directly at {}
+              <a href={`tel:${selectedHotel?.whatsappNumber}`} className="text-card underline hover:no-underline">
+                {selectedHotel?.whatsappNumber}
               </a>
             </p>
           </div>

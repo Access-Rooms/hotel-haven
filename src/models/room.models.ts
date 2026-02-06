@@ -212,3 +212,56 @@ export class Room {
     packageType: string
     showRoomsWithRate: boolean
   }
+
+  export class GetRoomAvailabilityPayload {
+    hotelId: string
+    roomTypeId: string
+    year: number
+    month: number
+  }
+
+  export class RoomAvailabilityResponse {
+    status: boolean
+    message: string
+    data: RoomAvailabilityData
+  }
+
+  export class RoomAvailabilityData {
+    summary: RoomAvailabilitySummary
+    calendar: RoomAvailabilityCalendar
+  }
+
+  export class RoomAvailabilitySummary {
+    totalRooms: number
+    available: number
+    bookings: number
+    blocked: number
+    maintenance: number
+    cleaning: number
+  }
+
+  export class RoomAvailabilityCalendar {
+    month: string
+    days: RoomAvailabilityDay[]
+  }
+
+  export class RoomAvailabilityDay {
+    date: string
+    dayOfWeek: string
+    available: number
+    total: number
+    bookings: number
+    maintenance: number
+    cleaning: number
+    blocked: number
+    rooms: RoomAvailabilityRoom[]
+  }
+
+  export class RoomAvailabilityRoom {
+    roomId: string
+    roomNumber: string
+    floorNumber: string
+    status: 'AVAILABLE' | 'BOOKED' | 'BLOCKED' | 'MAINTENANCE' | 'CLEANING'
+    blockType?: string
+    bookingId?: string
+  }

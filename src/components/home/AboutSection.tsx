@@ -119,7 +119,7 @@ export function AboutSection({ hotel }: { hotel: Hotel | null }) {
             </div>
             {/* Floating Badge */}
             <div className="absolute -bottom-6 -right-6 sm:bottom-8 sm:-right-8 bg-hotel-secondary text-secondary-foreground rounded-2xl p-4 sm:p-6 shadow-elevated">
-              <p className="text-3xl sm:text-4xl font-display font-bold">15+</p>
+              <p className="text-3xl sm:text-4xl font-display font-bold">6+</p>
               <p className="text-sm opacity-90">Years of Excellence</p>
             </div>
           </div>
