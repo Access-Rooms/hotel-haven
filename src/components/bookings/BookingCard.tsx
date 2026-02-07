@@ -68,7 +68,12 @@ export function BookingCard({ booking, onCancel, onModify }: BookingCardProps) {
   
   const referenceNumber = `AR-${booking.reservationNumber}`;
   const checkInDate = new Date(booking.checkInDate || booking.reservationCheckInDate);
-  const checkOutDate = new Date(booking.checkOutDate || booking.reservationCheckOutDate);
+  // Extract date part from checkout date to avoid timezone issues (checkout date is 23:59:59.999Z)
+  // Parse only the date portion (YYYY-MM-DD) to ensure correct date display
+  const checkoutDateStr = booking.checkOutDate || booking.reservationCheckOutDate;
+  const checkOutDate = checkoutDateStr 
+    ? new Date(checkoutDateStr.split('T')[0] + 'T00:00:00.000Z')
+    : new Date();
   
   const adultGuests = bookedRoom?.roomInfo?.adultGuest || 0;
   const childGuests = bookedRoom?.roomInfo?.childGuest || 0;

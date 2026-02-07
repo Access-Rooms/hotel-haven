@@ -177,7 +177,11 @@ export default function BookingDetails() {
   const roomType = bookedRoom?.roomTypeName || 'Standard Room';
   const referenceNumber = reservation ? `AR-${reservation.reservationNumber}` : '';
   const checkInDate = reservation ? new Date(reservation.reservationCheckInDate) : null;
-  const checkOutDate = reservation ? new Date(reservation.reservationCheckOutDate) : null;
+  // Extract date part from checkout date to avoid timezone issues (checkout date is 23:59:59.999Z)
+  // Parse only the date portion (YYYY-MM-DD) to ensure correct date display
+  const checkOutDate = reservation 
+    ? new Date(reservation.reservationCheckOutDate.split('T')[0] + 'T00:00:00.000Z')
+    : null;
   
   const adultGuests = bookedRoom?.roomInfo?.adultGuest || 0;
   const childGuests = bookedRoom?.roomInfo?.childGuest || 0;
