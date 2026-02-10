@@ -21,6 +21,7 @@ import BookingDetails from "./pages/BookingDetails";
 import AddReview from "./pages/AddReview";
 import BookingSuccess from "./pages/BookingSuccess";
 import PaymentFailed from "./pages/PaymentFailed";
+import DataAnalyzer from "./pages/DataAnalyzer";
 
 const queryClient = new QueryClient();
 
@@ -48,6 +49,7 @@ const App = () => (
                 <Route path="/bookings/:bookingId/review" element={<AddReview />} />
                 <Route path="/booking-success" element={<BookingSuccess />} />
                 <Route path="/payment-failed" element={<PaymentFailed />} />
+                <Route path="/data-analyzer" element={<DataAnalyzer />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
