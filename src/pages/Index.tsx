@@ -22,7 +22,7 @@ const Index = () => {
         <FeaturedRooms hotels={hotels} />
         <AmenitiesSection hotelId={selectedHotel?._id || null}/>
         <GalleryPreview hotel={selectedHotel || null}/>
-        <ReviewsSection />
+        {/* <ReviewsSection /> */}
         <CTASection hotel={selectedHotel || null} />
       </main>
       <Footer hotel={selectedHotel || null} />
