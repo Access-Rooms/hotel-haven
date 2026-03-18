@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { CalendarDays, Users, ChevronDown, Search, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { hotelConfig } from '@/data/hotelData';
+// import { hotelConfig } from '@/data/hotelData';
 import { cn } from '@/lib/utils';
 import { Hotel } from '@/models/home.models';
 import { useBooking } from '@/contexts/BookingContext';
@@ -48,16 +48,73 @@ export function HeroSection({ hotels }: HeroSectionProps) {
     return `${environment.imageBaseUrl}${imagePath}`;
   };
 
+  // Normalize coverImage to array format
+  const coverImages = useMemo(() => {
+    const coverImage = localSelectedHotel?.websiteData?.coverImage;
+    if (!coverImage) return [];
+    
+    // If it's already an array, return it
+    if (Array.isArray(coverImage)) {
+      return coverImage.filter(img => img); // Filter out empty values
+    }
+    
+    // If it's a string, convert to array
+    return [coverImage];
+  }, [localSelectedHotel?.websiteData?.coverImage]);
+
+  // State for current image index
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  // Auto-slide images every 2 seconds
+  useEffect(() => {
+    if (coverImages.length <= 1) return;
+
+    const interval = setInterval(() => {
+      setCurrentImageIndex((prevIndex) => (prevIndex + 1) % coverImages.length);
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [coverImages.length]);
+
+  // Reset to first image when hotel changes
+  useEffect(() => {
+    setCurrentImageIndex(0);
+  }, [localSelectedHotel?._id]);
+
+  // Get fallback image URL
+  const fallbackImage = "https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=1920&q=80";
+  
+  // Get current image URL
+  const currentImageUrl = coverImages.length > 0 
+    ? getImageUrl(coverImages[currentImageIndex]) || fallbackImage
+    : fallbackImage;
+
   const showHotelSelector = hotels && hotels.length > 1;
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-      {/* Background Image */}
+      {/* Background Image Carousel */}
       <div className="absolute inset-0">
-        <img
-          src={getImageUrl(localSelectedHotel?.websiteData?.coverImage) || "https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=1920&q=80"}
-          alt="Ocean Pearl Resort"
-          className="w-full h-full object-cover"
-        />
+        {coverImages.length > 0 ? (
+          <>
+            {coverImages.map((image, index) => (
+              <img
+                key={index}
+                src={getImageUrl(image) || fallbackImage}
+                alt={`${localSelectedHotel?.hotelName || 'Hotel'} - Image ${index + 1}`}
+                className={cn(
+                  "absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ease-in-out",
+                  index === currentImageIndex ? "opacity-100" : "opacity-0"
+                )}
+              />
+            ))}
+          </>
+        ) : (
+          <img
+            src={fallbackImage}
+            alt={localSelectedHotel?.hotelName || "Hotel"}
+            className="w-full h-full object-cover"
+          />
+        )}
         <div className="absolute inset-0 bg-gradient-overlay" />
         <div className="absolute inset-0 bg-foreground/30" />
       </div>

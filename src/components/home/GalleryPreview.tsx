@@ -90,7 +90,7 @@ export function GalleryPreview({ hotel }: { hotel: Hotel | null }) {
               Gallery
             </p>
             <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground">
-              Explore Our Resort
+              {hotel?.websiteData?.gallerySectionTitle}
             </h2>
           </div>
           <Button variant="outline" size="lg" asChild className="self-start sm:self-auto">

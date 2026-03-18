@@ -31,7 +31,7 @@ export function Footer({ hotel }: { hotel: Hotel | null }) {
               </div>
             </div>
             <p className="text-background/70 text-sm leading-relaxed">
-              Experience unparalleled luxury at our beachfront resort, where every moment is crafted for your perfect getaway.
+              {selectedHotel?.websiteData?.shortDescription}
             </p>
             <div className="flex gap-4">
               <a href="#" className="w-10 h-10 rounded-full bg-background/10 flex items-center justify-center hover:bg-background/20 transition-colors">

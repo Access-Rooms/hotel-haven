@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Phone, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { hotelConfig } from '@/data/hotelData';
+// import { hotelConfig } from '@/data/hotelData';
 import { Hotel } from '@/models/home.models';
 import { useEffect, useState } from 'react';
 
@@ -9,7 +9,7 @@ export function CTASection({ hotel }: { hotel: Hotel | null }) {
   const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(hotel);
   const handleWhatsApp = () => {
     window.open(
-      `https://wa.me/${selectedHotel?.whatsappNumber || hotelConfig.whatsappNumber.replace(/\D/g, '')}?text=Hi, I'd like to inquire about booking a room at ${selectedHotel?.hotelName}.`,
+      `https://wa.me/${selectedHotel?.whatsappNumber || selectedHotel.whatsappNumber.replace(/\D/g, '')}?text=Hi, I'd like to inquire about booking a room at ${selectedHotel?.hotelName}.`,
       '_blank'
     );
   };
@@ -37,10 +37,10 @@ export function CTASection({ hotel }: { hotel: Hotel | null }) {
           {/* Content */}
           <div className="relative z-10 px-8 py-16 sm:px-16 sm:py-24 text-center">
             <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold text-card mb-4">
-              Ready for Your Dream Getaway?
+              {selectedHotel?.websiteData?.homePageTitle}
             </h2>
             <p className="text-card/90 text-lg max-w-2xl mx-auto mb-8">
-              {selectedHotel?.websiteData.shortDescription || 'Book your stay today and experience the luxury, comfort, and world-class hospitality that awaits at ' + selectedHotel?.hotelName}.
+              {selectedHotel?.websiteData?.shortDescription || 'Book your stay today and experience the luxury, comfort, and world-class hospitality that awaits at ' + selectedHotel?.hotelName}.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">

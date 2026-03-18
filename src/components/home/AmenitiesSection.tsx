@@ -118,10 +118,10 @@ export function AmenitiesSection({ hotelId }: { hotelId: string | null }) {
             {hotel?.hotelName} Amenities
           </p>
           <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground mb-4">
-            Everything You Need
+           {hotel?.websiteData?.facilitiesSectionTitle}
           </h2>
           <p className="text-muted-foreground text-lg">
-            From world-class wellness facilities to gourmet dining, we've curated every amenity for your perfect stay.
+            {hotel?.websiteData?.facilitiesSectionDescription}
           </p>
         </div>
 

@@ -5,7 +5,7 @@ import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { WhatsAppButton } from '@/components/WhatsAppButton';
 import { Button } from '@/components/ui/button';
-import { rooms, hotelConfig } from '@/data/hotelData';
+// import { rooms, hotelConfig } from '@/data/hotelData';
 import { cn } from '@/lib/utils';
 import { roomService } from '@/services/room.service';
 import { RoomDetailsResponse, Room, GetRoomByIdPayload } from '@/models/room.models';
@@ -254,7 +254,7 @@ export default function RoomDetails() {
     const message = `Hi, I'd like to book the ${roomName} at ${hotelName}.${
       checkIn ? ` Check-in: ${checkIn}` : ''
     }${checkOut ? `, Check-out: ${checkOut}` : ''}`;
-    const whatsappNumber = hotel?.whatsappNumber || hotelConfig.whatsappNumber;
+    const whatsappNumber = hotel?.whatsappNumber;
     window.open(
       `https://wa.me/${whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`,
       '_blank'
@@ -495,7 +495,7 @@ export default function RoomDetails() {
                             </div>
                             <div className="text-right">
                               <p className="text-2xl font-bold text-primary">
-                                {hotelConfig.currencySymbol}{pricing.basePrice.toLocaleString()}
+                                ₹{pricing.basePrice.toLocaleString()}
                               </p>
                               {/* <p className="text-xs text-muted-foreground">Net Rate</p> */}
                             </div>
@@ -508,7 +508,7 @@ export default function RoomDetails() {
                                 <div className="flex justify-between">
                                   {/* <span className="text-muted-foreground">Base Price:</span> */}
                                   <span className="text-foreground font-medium">
-                                    {hotelConfig.currencySymbol}{pricing.basePrice.toLocaleString()}
+                                    ₹{pricing.basePrice.toLocaleString()}
                                   </span>
                                 </div>
                                 {/* <div className="flex justify-between">
@@ -527,7 +527,7 @@ export default function RoomDetails() {
                                   <div className="flex justify-between">
                                     <span className="text-muted-foreground">Free Child Rate:</span>
                                     <span className="text-foreground font-medium">
-                                      {hotelConfig.currencySymbol}{pricing.freeChildRate.toLocaleString()}
+                                      ₹{pricing.freeChildRate.toLocaleString()}
                                     </span>
                                   </div>
                                 )}
@@ -535,7 +535,7 @@ export default function RoomDetails() {
                                   <div className="flex justify-between">
                                     <span className="text-muted-foreground">Child (with mattress):</span>
                                     <span className="text-foreground font-medium">
-                                      {hotelConfig.currencySymbol}{pricing.paidChildRatewithExtraMatress.toLocaleString()}
+                                      ₹{pricing.paidChildRatewithExtraMatress.toLocaleString()}
                                     </span>
                                   </div>
                                 )}
@@ -543,7 +543,7 @@ export default function RoomDetails() {
                                   <div className="flex justify-between">
                                     <span className="text-muted-foreground">Child (no mattress):</span>
                                     <span className="text-foreground font-medium">
-                                      {hotelConfig.currencySymbol}{pricing.paidChildRatewithoutExtraMatress.toLocaleString()}
+                                      ₹{pricing.paidChildRatewithoutExtraMatress.toLocaleString()}
                                     </span>
                                   </div>
                                 )}
@@ -551,7 +551,7 @@ export default function RoomDetails() {
                                   <div className="flex justify-between">
                                     <span className="text-muted-foreground">Extra Adult (with mattress):</span>
                                     <span className="text-foreground font-medium">
-                                      {hotelConfig.currencySymbol}{pricing.extraAdultRateWithExtraMatress.toLocaleString()}
+                                      ₹{pricing.extraAdultRateWithExtraMatress.toLocaleString()}
                                     </span>
                                   </div>
                                 )}
@@ -559,7 +559,7 @@ export default function RoomDetails() {
                                   <div className="flex justify-between">
                                     <span className="text-muted-foreground">Extra Adult (no mattress):</span>
                                     <span className="text-foreground font-medium">
-                                      {hotelConfig.currencySymbol}{pricing.extraAdultRateWithoutExtraMatress.toLocaleString()}
+                                      ₹{pricing.extraAdultRateWithoutExtraMatress.toLocaleString()}
                                     </span>
                                   </div>
                                 )}
@@ -675,7 +675,7 @@ export default function RoomDetails() {
                         </div>
                         {inclusion.rate > 0 && !inclusion.included && (
                           <span className="text-sm font-semibold text-primary">
-                            {hotelConfig.currencySymbol}{inclusion.rate.toLocaleString()}
+                            ₹{inclusion.rate.toLocaleString()}
                           </span>
                         )}
                       </div>
@@ -695,7 +695,7 @@ export default function RoomDetails() {
                       <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-background">
                         <span className="text-foreground font-medium">{service.name}</span>
                         <span className="text-sm font-semibold text-primary">
-                          {hotelConfig.currencySymbol}{service.rate.toLocaleString()}
+                          ₹{service.rate.toLocaleString()}
                         </span>
                       </div>
                     ))}
@@ -757,7 +757,7 @@ export default function RoomDetails() {
                     <div className="text-center mb-4">
                       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Base Rate</p>
                       <p className="text-5xl font-display font-bold text-primary mb-1">
-                        {hotelConfig.currencySymbol}{selectedPricing.basePrice.toLocaleString()}
+                        ₹{selectedPricing.basePrice.toLocaleString()}
                       </p>
                       <p className="text-sm text-muted-foreground">per night</p>
                     </div>
@@ -792,7 +792,7 @@ export default function RoomDetails() {
                   <div className="text-center pb-6 border-b border-border">
                     <p className="text-sm text-muted-foreground mb-1">Starting from</p>
                     <p className="text-4xl font-display font-bold text-primary">
-                      {hotelConfig.currencySymbol}{roomPrice.toLocaleString()}
+                      ₹{roomPrice.toLocaleString()}
                     </p>
                     <p className="text-muted-foreground">per night</p>
                   </div>
@@ -821,7 +821,7 @@ export default function RoomDetails() {
                         </div>
                         {allB2bPricing.find(p => p.ac) && (
                           <p className="text-xs text-muted-foreground mt-1">
-                            {hotelConfig.currencySymbol}{allB2bPricing.find(p => p.ac)?.basePrice.toLocaleString()}/night
+                            ₹{allB2bPricing.find(p => p.ac)?.basePrice.toLocaleString()}/night
                           </p>
                         )}
                       </button>
@@ -841,7 +841,7 @@ export default function RoomDetails() {
                         </div>
                         {allB2bPricing.find(p => p.nonac) && (
                           <p className="text-xs text-muted-foreground mt-1">
-                            {hotelConfig.currencySymbol}{allB2bPricing.find(p => p.nonac)?.basePrice.toLocaleString()}/night
+                            ₹{allB2bPricing.find(p => p.nonac)?.basePrice.toLocaleString()}/night
                           </p>
                         )}
                       </button>

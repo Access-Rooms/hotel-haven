@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { MessageCircle, X } from 'lucide-react';
-import { hotelConfig } from '@/data/hotelData';
+// import { hotelConfig } from '@/data/hotelData';
 import { cn } from '@/lib/utils';
+import { useHotels } from '@/contexts/HotelContext';
 
 const quickMessages = [
   'Check room availability',
@@ -12,11 +13,12 @@ const quickMessages = [
 
 export function WhatsAppButton() {
   const [isOpen, setIsOpen] = useState(false);
+  const { selectedHotel } = useHotels();
 
   const handleQuickMessage = (message: string) => {
     const encodedMessage = encodeURIComponent(message);
     window.open(
-      `https://wa.me/${hotelConfig.whatsappNumber.replace(/\D/g, '')}?text=${encodedMessage}`,
+      `https://wa.me/${selectedHotel?.whatsappNumber.replace(/\D/g, '')}?text=${encodedMessage}`,
       '_blank'
     );
   };

@@ -4,7 +4,7 @@ import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { WhatsAppButton } from '@/components/WhatsAppButton';
 import { Button } from '@/components/ui/button';
-import { hotelConfig } from '@/data/hotelData';
+// import { hotelConfig } from '@/data/hotelData';
 import { useToast } from '@/hooks/use-toast';
 import { useHotels } from '@/contexts/HotelContext';
 
@@ -23,12 +23,12 @@ export default function Contact() {
   const contactInfo = useMemo(() => {
     if (!selectedHotel) {
       return {
-        address: hotelConfig.address,
-        phone: hotelConfig.phone,
-        email: hotelConfig.email,
-        whatsapp: hotelConfig.whatsappNumber,
+        address: '',
+        phone: '',
+        email: '',
+        whatsapp: '',
         receptionHours: '24/7 — Always at your service',
-        location: hotelConfig.address,
+        location: '',
         hotelName: selectedHotel?.hotelName,
       };
     }
@@ -36,14 +36,14 @@ export default function Contact() {
     // Get phone number - try contactDetails first, then fallback
     const phoneNumbers = selectedHotel.contactDetails?.phoneNumber || [];
     const primaryPhone = Array.isArray(phoneNumbers) && phoneNumbers.length > 0
-      ? (typeof phoneNumbers[0] === 'string' ? phoneNumbers[0] : phoneNumbers[0]?.number || phoneNumbers[0]?.phone || hotelConfig.phone)
-      : hotelConfig.phone;
+      ? (typeof phoneNumbers[0] === 'string' ? phoneNumbers[0] : phoneNumbers[0]?.number || phoneNumbers[0]?.phone || '')
+      : '';
 
     // Get email - try contactDetails first, then hotel.email
     const emails = selectedHotel.contactDetails?.emailId || [];
     const primaryEmail = Array.isArray(emails) && emails.length > 0
       ? (typeof emails[0] === 'string' ? emails[0] : emails[0]?.email || emails[0]?.emailId || selectedHotel.email)
-      : (selectedHotel.email || hotelConfig.email);
+      : (selectedHotel.email);
 
     // Build address
     const addressParts = [
@@ -55,7 +55,7 @@ export default function Contact() {
     ].filter(Boolean);
     const fullAddress = addressParts.length > 0 
       ? addressParts.join(', ')
-      : hotelConfig.address;
+      : selectedHotel.address;
 
     // Reception hours
     const receptionHours = selectedHotel.is24HrsCheckin
@@ -71,7 +71,7 @@ export default function Contact() {
       address: fullAddress,
       phone: primaryPhone,
       email: primaryEmail,
-      whatsapp: selectedHotel.whatsappNumber || hotelConfig.whatsappNumber,
+      whatsapp: selectedHotel.whatsappNumber,
       receptionHours,
       location: mapLocation,
       hotelName: selectedHotel.hotelName,
