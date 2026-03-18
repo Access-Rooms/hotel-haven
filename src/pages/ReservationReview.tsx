@@ -77,7 +77,7 @@ import { RoomDetailsResponse, GetRoomByIdPayload, RoomAvailabilityResponse, Room
 import { environment } from '../../environment';
 import { useHotels } from '@/contexts/HotelContext';
 import { useBooking } from '@/contexts/BookingContext';
-import { hotelConfig } from '@/data/hotelData';
+// import { hotelConfig } from '@/data/hotelData';
 import { AuthService } from '@/services/auth.service';
 import bookingsService from '@/services/bookings.service';
 import { BookingRequest } from '@/models/bookings.models';
@@ -975,7 +975,7 @@ export default function ReservationReview() {
     const hotelName = selectedHotel?.hotelName;
     const roomName = room?.roomsDisplayName || 'Room';
     const message = `I need help with my booking for ${roomName} at ${hotelName}.`;
-    const whatsappNumber = selectedHotel?.whatsappNumber || hotelConfig.whatsappNumber;
+    const whatsappNumber = selectedHotel?.whatsappNumber;
     window.open(
       `https://wa.me/${whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`,
       '_blank'
@@ -1590,7 +1590,7 @@ export default function ReservationReview() {
                           {hotel?.hotelName}
                         </h3>
                         <p className="text-sm text-muted-foreground mb-1 truncate">
-                          {hotel?.locationName || hotel?.townName || hotelConfig.location}
+                          {hotel?.locationName || hotel?.townName}
                         </p>
                         <p className="text-sm font-medium text-foreground truncate">
                           {room.roomsDisplayName}
@@ -1949,7 +1949,7 @@ export default function ReservationReview() {
                                     Base Rate × {pricingBreakdown.rooms} {pricingBreakdown.rooms === 1 ? 'room' : 'rooms'} × {pricingBreakdown.nights} nights
                                   </span>
                                   <span className="text-foreground">
-                                    {hotelConfig.currencySymbol}
+                                    ₹
                                     {(pricingBreakdown.baseRoomPrice * pricingBreakdown.nights * pricingBreakdown.rooms).toLocaleString()}
                                   </span>
                                 </div>
@@ -1964,7 +1964,7 @@ export default function ReservationReview() {
                                           Extra Adults ({pricingBreakdown.extraAdultsCount} × {selectedPricing?.extraAdultRateWithExtraMatress || 0} × {pricingBreakdown.nights} {pricingBreakdown.nights === 1 ? 'night' : 'nights'})
                                         </span>
                                         <span className="text-foreground">
-                                          {hotelConfig.currencySymbol}
+                                          ₹
                                           {pricingBreakdown.extraAdults.toLocaleString()}
                                         </span>
                                       </div>
@@ -1975,7 +1975,7 @@ export default function ReservationReview() {
                                           Extra Children ({pricingBreakdown.extraChildrenCount} × {selectedPricing?.paidChildRatewithExtraMatress || 0} × {pricingBreakdown.nights} {pricingBreakdown.nights === 1 ? 'night' : 'nights'})
                                         </span>
                                         <span className="text-foreground">
-                                          {hotelConfig.currencySymbol}
+                                          ₹
                                           {pricingBreakdown.extraChildren.toLocaleString()}
                                         </span>
                                       </div>
@@ -1988,7 +1988,7 @@ export default function ReservationReview() {
                                 <div className="flex justify-between text-sm pt-2 border-t">
                                   <span className="text-foreground font-medium">Subtotal</span>
                                   <span className="text-foreground font-medium">
-                                    {hotelConfig.currencySymbol}
+                                    ₹
                                     {pricingBreakdown.subtotal.toLocaleString()}
                                   </span>
                                 </div>
@@ -1999,7 +1999,7 @@ export default function ReservationReview() {
                                       <Info size={12} className="cursor-help" />
                                     </span>
                                     <span className="text-foreground">
-                                      {hotelConfig.currencySymbol}
+                                      ₹
                                       {pricingBreakdown.taxes.toLocaleString()}
                                     </span>
                                   </div>
@@ -2008,7 +2008,7 @@ export default function ReservationReview() {
                                   <div className="flex justify-between text-sm text-hotel-secondary">
                                     <span>Discount</span>
                                     <span>
-                                      -{hotelConfig.currencySymbol}
+                                      -₹
                                       {pricingBreakdown.discount.toLocaleString()}
                                     </span>
                                   </div>
@@ -2023,7 +2023,7 @@ export default function ReservationReview() {
                           <div className="flex items-center justify-between">
                             <span className="text-lg font-semibold text-foreground">Total Amount</span>
                             <span className="text-lg font-semibold text-foreground">
-                              {hotelConfig.currencySymbol}
+                              ₹
                               {pricingBreakdown.total.toLocaleString()}
                             </span>
                           </div>
@@ -2034,7 +2034,7 @@ export default function ReservationReview() {
                             <div className="flex justify-between text-sm pt-2 border-t">
                               <span className="font-medium text-foreground">Amount to Pay Now (30%)</span>
                               <span className="font-medium text-primary">
-                                {hotelConfig.currencySymbol}
+                                ₹
                                 {pricingBreakdown.totalToPayNow.toLocaleString()}
                               </span>
                             </div>
@@ -2042,7 +2042,7 @@ export default function ReservationReview() {
                             <div className="flex justify-between text-sm pt-1">
                               <span className="text-muted-foreground">Remaining Balance (70%)</span>
                               <span className="text-muted-foreground">
-                                {hotelConfig.currencySymbol}
+                                ₹
                                 {pricingBreakdown.remainingBalance.toLocaleString()}
                               </span>
                             </div>
@@ -2053,7 +2053,7 @@ export default function ReservationReview() {
                           
                           {pricingBreakdown.discount > 0 && (
                             <p className="text-xs text-hotel-secondary">
-                              You saved {hotelConfig.currencySymbol}
+                              You saved ₹
                               {pricingBreakdown.discount.toLocaleString()}!
                             </p>
                           )}
@@ -2166,12 +2166,12 @@ export default function ReservationReview() {
               <div>
                 <p className="text-xs text-muted-foreground">Total Amount</p>
                 <p className="text-lg font-semibold text-foreground">
-                  {hotelConfig.currencySymbol}
+                  ₹
                   {pricingBreakdown.total.toLocaleString()}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">Pay Now</p>
                 <p className="text-xl font-bold text-primary">
-                  {hotelConfig.currencySymbol}
+                  ₹
                   {pricingBreakdown.totalToPayNow.toLocaleString()}
                 </p>
               </div>

@@ -5,8 +5,8 @@ import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { WhatsAppButton } from '@/components/WhatsAppButton';
 import { Button } from '@/components/ui/button';
-import { rooms } from '@/data/hotelData';
-import { hotelConfig } from '@/data/hotelData';
+// import { rooms } from '@/data/hotelData';
+// import { hotelConfig } from '@/data/hotelData';
 import { cn } from '@/lib/utils';
 import { GetRoomsListPayload, Room } from '@/models/room.models';
 import { homeService } from '@/services/home.service';
@@ -68,7 +68,7 @@ export default function Rooms() {
   }, [hotelId, dateFilter]);
 
   // Use API rooms if available, otherwise use static data
-  const allRooms = roomsData && roomsData.length > 0 ? roomsData : rooms;
+  const allRooms = roomsData && roomsData.length > 0 ? roomsData : [];
 
   // Filter rooms based on selected filters
   const filteredRooms = allRooms.filter((room) => {
@@ -102,10 +102,10 @@ export default function Rooms() {
       <section className="relative pt-32 pb-20 bg-gradient-hero">
         <div className="container-hotel text-center">
           <h1 className="font-display text-4xl sm:text-5xl font-bold text-primary-foreground mb-4">
-            Our Rooms & Suites
+            {selectedHotel?.websiteData?.roomSectionTitle}
           </h1>
           <p className="text-primary-foreground/80 text-lg max-w-2xl mx-auto">
-            Discover the perfect accommodation for your stay at {selectedHotel?.hotelName}
+            {selectedHotel?.websiteData?.roomSectionDescription}
           </p>
         </div>
       </section>
@@ -343,14 +343,14 @@ export default function Rooms() {
                                 <>
                                  
                                   <p className="text-2xl font-display font-bold text-primary">
-                                    {hotelConfig.currencySymbol}{basePrice.toLocaleString()}
+                                    ₹{basePrice.toLocaleString()}
                                   </p>
                                  
                                 </>
                               ) : (
                                 <>
                                   <p className="text-2xl font-display font-bold text-primary">
-                                    {hotelConfig.currencySymbol}{roomPrice.toLocaleString()}
+                                    ₹{roomPrice.toLocaleString()}
                                   </p>
                                   <p className="text-xs text-muted-foreground">per night</p>
                                 </>

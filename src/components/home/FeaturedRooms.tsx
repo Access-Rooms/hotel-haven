@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom';
 import { Users, Maximize, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { rooms } from '@/data/hotelData';
-import { hotelConfig } from '@/data/hotelData';
+// import { rooms } from '@/data/hotelData';
+// import { hotelConfig } from '@/data/hotelData';
 import { Hotel } from '@/models/home.models';
 import { useEffect, useState } from 'react';
 import { GetRoomsListPayload, Room } from '@/models/room.models';
@@ -22,7 +22,7 @@ export function FeaturedRooms({ hotels }: FeaturedRoomsProps) {
   const { dateFilter } = useBooking();
 
   // Fallback to static data if API data is not available
-  const staticFeaturedRooms = rooms.filter((room) => room.featured);
+  // const staticFeaturedRooms = rooms.filter((room) => room.featured);
 
   useEffect(() => {
     if (hotels && hotels.length > 0) {
@@ -57,20 +57,20 @@ export function FeaturedRooms({ hotels }: FeaturedRoomsProps) {
   // Use API rooms if available, otherwise use static data
   const displayRooms = roomsData && roomsData.length > 0 
     ? roomsData.slice(0, 6) // Show first 6 rooms from API
-    : staticFeaturedRooms;
+    : [];
   return (
     <section className="py-20 lg:py-28 bg-muted/50">
       <div className="container-hotel">
         {/* Header */}
         <div className="text-center max-w-2xl mx-auto mb-16">
-          <p className="text-hotel-secondary font-medium tracking-wider uppercase text-sm mb-4">
+          {/* <p className="text-hotel-secondary font-medium tracking-wider uppercase text-sm mb-4">
             Accommodations
-          </p>
+          </p> */}
           <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground mb-4">
-            Featured Rooms & Suites
+            {selectedHotel?.websiteData?.roomSectionTitle}
           </h2>
           <p className="text-muted-foreground text-lg">
-            Discover our handpicked selection of luxurious accommodations, each offering unique experiences and stunning views.
+            {selectedHotel?.websiteData?.roomSectionDescription}
           </p>
         </div>
 
@@ -141,7 +141,7 @@ export function FeaturedRooms({ hotels }: FeaturedRoomsProps) {
                     <div className="absolute inset-0 bg-gradient-to-t from-foreground/60 via-transparent to-transparent" />
                     {roomPrice > 0 && (
                       <div className="absolute top-4 right-4 bg-hotel-secondary text-secondary-foreground px-3 py-1.5 rounded-full text-sm font-semibold">
-                        From {hotelConfig.currencySymbol}{roomPrice.toLocaleString()}
+                        From ₹{roomPrice.toLocaleString()}
                       </div>
                     )}
                   </div>
@@ -155,7 +155,7 @@ export function FeaturedRooms({ hotels }: FeaturedRoomsProps) {
                       {roomPrice > 0 && (
                         <div className="text-right ml-4">
                           <div className="text-hotel-secondary font-bold text-lg">
-                            {hotelConfig.currencySymbol}{roomPrice.toLocaleString()}
+                          ₹{roomPrice.toLocaleString()}
                           </div>
                           <div className="text-xs text-muted-foreground">per night</div>
                         </div>

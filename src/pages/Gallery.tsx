@@ -131,10 +131,10 @@ export default function Gallery() {
       <section className="relative pt-32 pb-20 bg-gradient-hero">
         <div className="container-hotel text-center">
           <h1 className="font-display text-4xl sm:text-5xl font-bold text-primary-foreground mb-4">
-            Photo Gallery
+            {selectedHotel?.websiteData?.gallerySectionTitle}
           </h1>
           <p className="text-primary-foreground/80 text-lg max-w-2xl mx-auto">
-            Take a visual journey through our stunning resort and facilities
+            {selectedHotel?.websiteData?.gallerySectionDescription}
           </p>
         </div>
       </section>

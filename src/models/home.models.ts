@@ -78,7 +78,7 @@ export class Hotel {
 
   export interface WebsiteData {
     websiteUrl: string
-    coverImage: string
+    coverImage: string | string[]
     logo: string
     title: string
     description: string
@@ -86,6 +86,17 @@ export class Hotel {
     services?: string[]
     highlightText?: string
     shortDescription?: string
+    instagramUrl?: string
+    youtubeUrl?: string
+    twitterUrl?: string
+    homePageTitle?: string
+    homePageDescription?: string
+    gallerySectionTitle?: string
+    gallerySectionDescription?: string
+    roomSectionTitle?: string
+    roomSectionDescription?: string
+    facilitiesSectionTitle?: string
+    facilitiesSectionDescription?: string
   }
   
   export class HotelType {
