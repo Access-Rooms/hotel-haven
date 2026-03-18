@@ -114,9 +114,9 @@ export function AmenitiesSection({ hotelId }: { hotelId: string | null }) {
       <div className="container-hotel">
         {/* Header */}
         <div className="text-center max-w-2xl mx-auto mb-16">
-          <p className="text-hotel-secondary font-medium tracking-wider uppercase text-sm mb-4">
+          {/* <p className="text-hotel-secondary font-medium tracking-wider uppercase text-sm mb-4">
             {hotel?.hotelName} Amenities
-          </p>
+          </p> */}
           <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground mb-4">
            {hotel?.websiteData?.facilitiesSectionTitle}
           </h2>
