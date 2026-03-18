@@ -34,13 +34,13 @@ export function Footer({ hotel }: { hotel: Hotel | null }) {
               {selectedHotel?.websiteData?.shortDescription}
             </p>
             <div className="flex gap-4">
-              <a href="#" className="w-10 h-10 rounded-full bg-background/10 flex items-center justify-center hover:bg-background/20 transition-colors">
+              <a href={selectedHotel?.websiteData?.instagramUrl || '#'} className="w-10 h-10 rounded-full bg-background/10 flex items-center justify-center hover:bg-background/20 transition-colors">
                 <Instagram size={18} />
               </a>
-              <a href="#" className="w-10 h-10 rounded-full bg-background/10 flex items-center justify-center hover:bg-background/20 transition-colors">
+              <a href={selectedHotel?.websiteData?.youtubeUrl || '#'} className="w-10 h-10 rounded-full bg-background/10 flex items-center justify-center hover:bg-background/20 transition-colors">
                 <Facebook size={18} />
               </a>
-              <a href="#" className="w-10 h-10 rounded-full bg-background/10 flex items-center justify-center hover:bg-background/20 transition-colors">
+              <a href={selectedHotel?.websiteData?.twitterUrl || '#'} className="w-10 h-10 rounded-full bg-background/10 flex items-center justify-center hover:bg-background/20 transition-colors">
                 <Twitter size={18} />
               </a>
             </div>
