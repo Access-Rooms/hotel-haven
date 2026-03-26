@@ -4,6 +4,7 @@ import { hotelConfig } from '@/data/hotelData';
 import { Hotel } from '@/models/home.models';
 import { useState } from 'react';
 import { useEffect } from 'react';
+import { environment } from '../../../environment';
 
 export function Footer({ hotel }: { hotel: Hotel | null }) {
   const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(hotel);
@@ -13,6 +14,14 @@ export function Footer({ hotel }: { hotel: Hotel | null }) {
     }
   }, [hotel]);
 
+  const getImageUrl = (imagePath: string | undefined): string | null => {
+    if (!imagePath) return null;
+    if (typeof imagePath === 'string' && (imagePath.startsWith('http://') || imagePath.startsWith('https://'))) {
+      return imagePath;
+    }
+    return `${environment.imageBaseUrl}${imagePath}`;
+  };
+
   return (
     <footer className="bg-foreground text-background">
       <div className="container-hotel py-16">
@@ -20,19 +29,27 @@ export function Footer({ hotel }: { hotel: Hotel | null }) {
           {/* Brand */}
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-hero flex items-center justify-center">
-                <span className="text-primary-foreground font-display font-bold text-lg">
-                  {selectedHotel?.hotelName.charAt(0)}
-                </span>
+              <div className="w-10 h-10 rounded-xl bg-gradient-hero flex items-center justify-center overflow-hidden">
+                {selectedHotel?.propertyLogo ? (
+                  <img
+                    src={getImageUrl(selectedHotel?.propertyLogo) || ''}
+                    alt={selectedHotel.hotelName}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-primary-foreground font-display font-bold text-lg">
+                    {selectedHotel?.hotelName.charAt(0)}
+                  </span>
+                )}
               </div>
               <div>
                 <h3 className="font-display font-semibold text-lg">{selectedHotel?.hotelName}</h3>
-                <p className="text-sm text-background/60">{selectedHotel?.websiteData?.highlightText}</p>
+                <p className="text-sm text-background/60">{selectedHotel?.websiteData?.shortDescription}</p>
               </div>
             </div>
-            <p className="text-background/70 text-sm leading-relaxed">
+            {/* <p className="text-background/70 text-sm leading-relaxed">
               {selectedHotel?.websiteData?.shortDescription}
-            </p>
+            </p> */}
             <div className="flex gap-4">
               <a href={selectedHotel?.websiteData?.instagramUrl || '#'} className="w-10 h-10 rounded-full bg-background/10 flex items-center justify-center hover:bg-background/20 transition-colors">
                 <Instagram size={18} />

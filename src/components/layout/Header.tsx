@@ -100,7 +100,7 @@ export function Header({ hotel }: { hotel: Hotel | null }) {
             <div className="w-10 h-10 rounded-xl bg-gradient-hero flex items-center justify-center shadow-soft group-hover:shadow-card transition-shadow overflow-hidden">
               {selectedHotel?.propertyLogo ? (
                 <img 
-                  src={getImageUrl(selectedHotel.propertyLogo) || ''} 
+                  src={getImageUrl(selectedHotel?.propertyLogo) || ''} 
                   alt={selectedHotel.hotelName}
                   className="w-full h-full object-cover"
                 />
