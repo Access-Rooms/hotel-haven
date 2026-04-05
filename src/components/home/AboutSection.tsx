@@ -84,6 +84,18 @@ export function AboutSection({ hotel }: { hotel: Hotel | null }) {
     return result;
   }, [selectedHotel]);
 
+  // Compute years of excellence based on built year (fallback to 1)
+  const yearsOfExcellence = useMemo(() => {
+    const builtYearString = selectedHotel?.builtYear;
+    const builtYear = builtYearString ? parseInt(builtYearString, 10) : NaN;
+    const currentYear = new Date().getFullYear();
+    if (Number.isNaN(builtYear) || builtYear > currentYear || builtYear < 1900) {
+      return 1;
+    }
+    const diff = currentYear - builtYear;
+    return diff > 0 ? diff : 1;
+  }, [selectedHotel?.builtYear]);
+
   return (
     <section className="py-20 lg:py-28 bg-background">
       <div className="container-hotel">
@@ -119,7 +131,7 @@ export function AboutSection({ hotel }: { hotel: Hotel | null }) {
             </div>
             {/* Floating Badge */}
             <div className="absolute -bottom-6 -right-6 sm:bottom-8 sm:-right-8 bg-hotel-secondary text-secondary-foreground rounded-2xl p-4 sm:p-6 shadow-elevated">
-              <p className="text-3xl sm:text-4xl font-display font-bold">1+</p>
+              <p className="text-3xl sm:text-4xl font-display font-bold">{yearsOfExcellence}+</p>
               <p className="text-sm opacity-90">Years of Excellence</p>
             </div>
           </div>

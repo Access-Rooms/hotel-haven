@@ -14,4 +14,4 @@ User-agent: *
 Allow: /
 
 # Sitemap
-Sitemap: https://ayurhillsretreat.com/sitemap.xml
+Sitemap: https://royalstreamwayanad.com/sitemap.xml
