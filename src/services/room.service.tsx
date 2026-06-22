@@ -5,6 +5,7 @@ import { environment } from "../../environment";
 
 class RoomService {
     private apiUrl = environment.apiUrl;
+    private apiUrl_V2 = environment.apiUrl_V2;
 
     async getRoomDetails(roomId: string): Promise<RoomDetailsResponse> {
         const response = await apiClient.post<RoomDetailsResponse>(`${this.apiUrl}room/details`, { roomId : roomId });
@@ -17,7 +18,7 @@ class RoomService {
     }
 
     async getRoomAvailability(payload: GetRoomAvailabilityPayload): Promise<RoomAvailabilityResponse> {
-        const response = await apiClient.post<RoomAvailabilityResponse>(`${this.apiUrl}room-availability/calendar`, payload);
+        const response = await apiClient.post<RoomAvailabilityResponse>(`${this.apiUrl_V2}hotel/room-availability/calendar`, payload);
         return response.data;
     }
 }
