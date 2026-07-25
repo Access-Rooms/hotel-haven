@@ -908,7 +908,18 @@ export default function ReservationReview() {
         .filter(Boolean)
         .join(' | ');
 
-      // Build booking request payload
+      const mealPlan = selectedPricing.breakfastIncluded ? 'Breakfast Included' : 'Room Only';
+      const packageInclusions: string[] = [];
+      if (selectedPricing.breakfastIncluded) packageInclusions.push('Breakfast');
+      if (selectedPricing.haveWelcomeDrink) packageInclusions.push('Welcome Drink');
+      if (selectedPricing.ac) packageInclusions.push('AC');
+      if (selectedPricing.nonac) packageInclusions.push('Non-AC');
+
+      const redirectUrl =
+        selectedHotel?.websiteData?.websiteUrl +'/bookings' ||
+        (typeof window !== 'undefined' ? window.location.origin : '');
+
+      // Build booking request payload for online-booking API
       const bookingRequest: BookingRequest = {
         hotelId: hotelId,
         userId: userId,
@@ -928,35 +939,57 @@ export default function ReservationReview() {
             numberOfRooms: roomCount,
             checkInDate: checkIn,
             checkOutDate: checkOut,
+            nights: numberOfNights,
             totalGuests: totalAdults + totalChildren,
             adultGuests: totalAdults,
             childGuests: totalChildren,
+            infantGuests: 0,
             packageSelected: selectedPricing._id || '',
+            packageDetails: {
+              packageId: selectedPricing._id || '',
+              packageName: selectedPricing.rateType || mealPlan,
+              breakfastIncluded: !!selectedPricing.breakfastIncluded,
+              haveWelcomeDrink: !!selectedPricing.haveWelcomeDrink,
+              ac: !!selectedPricing.ac,
+              nonAc: !!selectedPricing.nonac,
+              inclusions: packageInclusions,
+            },
+            mealPlan: mealPlan,
             amountPerNight: pricingBreakdown.baseRoomPrice,
             totalAmount: pricingBreakdown.baseRoomPrice * numberOfNights * roomCount,
           },
         ],
+        checkInDate: checkIn,
+        checkOutDate: checkOut,
+        nights: numberOfNights,
         totalAmount: pricingBreakdown.total,
         advanceAmount: pricingBreakdown.totalToPayNow,
-        beddingType: 'bed', // Valid values: bed, without_bed, mattress, without_mattress, cot, without_cot
+        beddingType: 'mattress',
         extraAdults: extraAdultsCount,
         extraChild: extraChildrenCount,
         extraAdultAmount: pricingBreakdown.extraAdults,
         extraChildAmount: pricingBreakdown.extraChildren,
-        mealPlan: selectedPricing.breakfastIncluded ? 'Breakfast Included' : 'Room Only',
+        extraAdultBeddingType: 'mattress',
+        extraChildBeddingType: 'mattress',
+        mealPlan: mealPlan,
         remarks: remarks,
+        balancePaidBy: 'GUEST',
+        packageType: 'B2B',
+        source: 'HOTEL_WEBSITE',
+        redirectUrl: redirectUrl,
+        idempotencyKey: crypto.randomUUID(),
       };
 
       // Call booking API
       const result = await bookingsService.createBooking(bookingRequest);
 
-      if (result.status && result.data?.paymentUrl) {
-        // Redirect to payment URL
-        window.location.href = result.data.paymentUrl;
+      if (result.code === 200 && result.data?.paymentUrl) {
+        // Redirect via Access Rooms pay page with PhonePe URL as query param
+        window.location.href = `https://agent.accessrooms.com/pay?paymentUrl=${encodeURIComponent(result.data.paymentUrl)}`;
       } else {
         setErrors((prev) => ({ 
           ...prev, 
-          submit: result.msg || 'Failed to create booking. Please try again.' 
+          submit: result.message || 'Failed to create booking. Please try again.' 
         }));
         setIsSubmitting(false);
       }
@@ -964,7 +997,7 @@ export default function ReservationReview() {
       console.error('Error creating booking:', error);
       setErrors((prev) => ({ 
         ...prev, 
-        submit: error?.response?.data?.msg || 'An error occurred. Please try again.' 
+        submit: error?.response?.data?.message || error?.response?.data?.msg || 'An error occurred. Please try again.' 
       }));
       setIsSubmitting(false);
     }
