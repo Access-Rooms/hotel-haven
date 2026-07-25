@@ -1,19 +1,53 @@
 import { Hotel } from "./home.models"
 
+/** OpenAPI: PackageType — selects PhonePe merchant credentials */
+export type OnlineBookingPackageType = 'B2B' | 'B2C'
+
+/** OpenAPI: BookingSource — where the booking was captured */
+export type OnlineBookingSource =
+  | 'CUSTOMER_WEB'
+  | 'HOTEL_WEB'
+  | 'HOTEL_WEBSITE'
+  | 'ACCESSROOMS_B2B'
+  | 'ACCESSROOMS_B2C'
+  | 'AGENT_PORTAL'
+  | 'OTA'
+  | 'ADMIN_PANEL'
+  | 'WHATSAPP_AI'
+
+/** OpenAPI: BalancePaidByEnum — who pays the balance */
+export type BalancePaidBy = 'DRIVER' | 'AGENT' | 'GUEST'
+
+/** OpenAPI: BeddingType — mattress or cot */
+export type BeddingType = 'mattress' | 'cot'
+
+/** Extra guest bedding (hotel reservation docs also allow without_mattress) */
+export type ExtraBeddingType = BeddingType | 'without_mattress'
+
 export class BookingRequest {
     hotelId: string
     userId: string
     guestDetails: GuestDetails
     roomRequirements: RoomRequirement[]
+    checkInDate: string
+    checkOutDate: string
+    nights: number
     totalAmount: number
     advanceAmount: number
-    beddingType: string
+    beddingType: BeddingType
     extraAdults: number
     extraChild: number
     extraAdultAmount: number
     extraChildAmount: number
+    extraAdultBeddingType: ExtraBeddingType
+    extraChildBeddingType: ExtraBeddingType
     mealPlan: string
     remarks: string
+    balancePaidBy: BalancePaidBy
+    packageType: OnlineBookingPackageType
+    source: OnlineBookingSource
+    redirectUrl: string
+    idempotencyKey: string
 }
 
 export class GuestDetails {
@@ -27,15 +61,29 @@ export class GuestDetails {
     pincode: string
 }
 
+export class PackageDetails {
+    packageId: string
+    packageName: string
+    breakfastIncluded: boolean
+    haveWelcomeDrink: boolean
+    ac: boolean
+    nonAc: boolean
+    inclusions: string[]
+}
+
 export class RoomRequirement {
     roomTypeId: string
     numberOfRooms: number
     checkInDate: string
     checkOutDate: string
+    nights: number
     totalGuests: number
     adultGuests: number
     childGuests: number
+    infantGuests: number
     packageSelected: string
+    packageDetails: PackageDetails
+    mealPlan: string
     amountPerNight: number
     totalAmount: number
 }
@@ -48,14 +96,35 @@ export class BookingResponse {
     advanceAmount: number
     balanceAmount: number
     totalAmount: number
+    merchantTransactionId?: string | null
+    holdExpiryAt?: string | null
+    bookingStatus?: string | null
     allocatedRooms: AllocatedRoom[]
-    paymentTransaction: PaymentTransaction
+    paymentTransaction: OnlineBookingPaymentTransaction
 }
 
 export class AllocatedRoom {
     roomId: string
     roomNumber: string
     roomType: string
+}
+
+export class OnlineBookingPaymentTransaction {
+    transactionId: string
+    internalTransactionId: string
+    paymentType: string
+    amount: number
+    paymentStatus: string
+    paymentMethod: string
+    paymentGateway: string
+}
+
+/** Vendor API wrapper: { code, message, data } */
+export class VendorApiResponse<T> {
+    code: number
+    message: string
+    data: T | null
+    details?: Record<string, string> | null
 }
 
 
