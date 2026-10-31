@@ -109,12 +109,48 @@ export function Footer({ hotel }: { hotel: Hotel | null }) {
                 <MapPin size={18} className="text-hotel-secondary shrink-0 mt-0.5" />
                 <span className="text-background/70">{selectedHotel?.address}</span>
               </li>
-              <li>
-                <a href={`tel:${selectedHotel?.contactDetails.phoneNumber[0] || selectedHotel?.whatsappNumber}`} className="flex gap-3 text-sm text-background/70 hover:text-background transition-colors">
-                  <Phone size={18} className="text-hotel-secondary shrink-0" />
-                  {selectedHotel?.contactDetails.phoneNumber[0] || selectedHotel?.whatsappNumber || ''}
-                </a>
-              </li>
+              {(() => {
+                const rawPhones = selectedHotel?.contactDetails?.phoneNumber;
+                const phoneList: string[] = (Array.isArray(rawPhones) ? rawPhones : rawPhones ? [rawPhones] : [])
+                  .map((p: any) => (typeof p === 'string' ? p : p?.number || p?.phone || p?.phoneNumber || ''))
+                  .filter((p: string) => Boolean(p?.trim()));
+
+                const allNumbers = phoneList.length > 0
+                  ? phoneList
+                  : (selectedHotel?.whatsappNumber ? [selectedHotel.whatsappNumber] : []);
+
+                if (allNumbers.length === 0) return null;
+
+                const [primaryPhone, ...altPhones] = allNumbers;
+
+                return (
+                  <li>
+                    <a
+                      href={`tel:${primaryPhone}`}
+                      className="flex gap-3 text-sm text-background/70 hover:text-background transition-colors"
+                    >
+                      <Phone size={18} className="text-hotel-secondary shrink-0 mt-0.5" />
+                      <div>
+                        <span>{primaryPhone}</span>
+                        {altPhones.length > 0 && (
+                          <div className="flex flex-col gap-1 mt-1 text-xs text-background/50">
+                            {altPhones.map((altNum, idx) => (
+                              <a
+                                key={idx}
+                                href={`tel:${altNum}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="hover:text-background/80 transition-colors"
+                              >
+                                {altNum}
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </a>
+                  </li>
+                );
+              })()}
               <li>
                 <a href={`mailto:${selectedHotel?.email}`} className="flex gap-3 text-sm text-background/70 hover:text-background transition-colors">
                   <Mail size={18} className="text-hotel-secondary shrink-0" />

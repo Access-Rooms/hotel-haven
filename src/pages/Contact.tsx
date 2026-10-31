@@ -33,11 +33,18 @@ export default function Contact() {
       };
     }
 
-    // Get phone number - try contactDetails first, then fallback
-    const phoneNumbers = selectedHotel.contactDetails?.phoneNumber || [];
-    const primaryPhone = Array.isArray(phoneNumbers) && phoneNumbers.length > 0
-      ? (typeof phoneNumbers[0] === 'string' ? phoneNumbers[0] : phoneNumbers[0]?.number || phoneNumbers[0]?.phone || '')
-      : '';
+    // Get phone numbers - try contactDetails first, then fallback
+    const rawPhones = selectedHotel.contactDetails?.phoneNumber;
+    const phoneList: string[] = (Array.isArray(rawPhones) ? rawPhones : rawPhones ? [rawPhones] : [])
+      .map((p: any) => (typeof p === 'string' ? p : p?.number || p?.phone || p?.phoneNumber || ''))
+      .filter((p: string) => Boolean(p?.trim()));
+
+    const allPhones = phoneList.length > 0
+      ? phoneList
+      : (selectedHotel.whatsappNumber ? [selectedHotel.whatsappNumber] : []);
+
+    const primaryPhone = allPhones[0] || '';
+    const altPhones = allPhones.slice(1);
 
     // Get email - try contactDetails first, then hotel.email
     const emails = selectedHotel.contactDetails?.emailId || [];
@@ -70,6 +77,7 @@ export default function Contact() {
     return {
       address: fullAddress,
       phone: primaryPhone,
+      altPhones,
       email: primaryEmail,
       whatsapp: selectedHotel.whatsappNumber,
       receptionHours,
@@ -154,6 +162,19 @@ export default function Contact() {
                         {contactInfo.phone}
                       </a>
                     )}
+                    {contactInfo.altPhones && contactInfo.altPhones.length > 0 && (
+                      <div className="flex flex-col gap-1 mt-1">
+                        {contactInfo.altPhones.map((altNum: string, idx: number) => (
+                          <a
+                            key={idx}
+                            href={`tel:${altNum}`}
+                            className="text-muted-foreground/75 text-xs hover:text-primary transition-colors block"
+                          >
+                            {altNum}
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -207,7 +228,7 @@ export default function Contact() {
             </div>
 
             {/* Contact Form */}
-            <div className="bg-card rounded-2xl shadow-card p-8">
+            {/* <div className="bg-card rounded-2xl shadow-card p-8">
               <h2 className="font-display text-2xl font-bold text-foreground mb-6">
                 Send Us a Message
               </h2>
@@ -292,7 +313,7 @@ export default function Contact() {
                   Send Message
                 </Button>
               </form>
-            </div>
+            </div> */}
           </div>
         </div>
       </section>
